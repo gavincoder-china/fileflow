@@ -33,7 +33,7 @@ struct TagGraphView: View {
         .onDisappear {
             timer?.invalidate()
         }
-        .onChange(of: appState.allTags) { _ in
+        .onChange(of: appState.allTags) { _, _ in
             loadGraphData()
         }
     }

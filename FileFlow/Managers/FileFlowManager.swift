@@ -731,7 +731,6 @@ class DirectoryMonitorService: ObservableObject {
         
         return false
     }
-}
 
     // MARK: - Rule Integration
     

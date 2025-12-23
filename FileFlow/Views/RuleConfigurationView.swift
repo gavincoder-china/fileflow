@@ -28,7 +28,7 @@ struct RuleConfigurationView: View {
                         Spacer()
                         
                         Toggle("", isOn: $rule.isEnabled)
-                            .onChange(of: rule.isEnabled) { _ in
+                            .onChange(of: rule.isEnabled) { _, _ in
                                 save(rule)
                             }
                             .labelsHidden()

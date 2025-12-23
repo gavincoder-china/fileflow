@@ -1139,7 +1139,7 @@ class DatabaseManager {
                 }
                 
                 sqlite3_bind_text(stmt, 1, fileIdString, -1, SQLITE_TRANSIENT)
-                embeddingData.withUnsafeBytes { ptr in
+                _ = embeddingData.withUnsafeBytes { ptr in
                     sqlite3_bind_blob(stmt, 2, ptr.baseAddress, Int32(embeddingData.count), SQLITE_TRANSIENT)
                 }
                 sqlite3_bind_text(stmt, 3, provider, -1, SQLITE_TRANSIENT)

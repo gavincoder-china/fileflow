@@ -53,7 +53,7 @@ class DeduplicationService {
     /// Find all duplicate files in the library
     /// - Returns: Groups of duplicate files
     func findDuplicates() async -> [DuplicateGroup] {
-        guard let rootURL = FileFlowManager.shared.rootURL else { return [] }
+        guard FileFlowManager.shared.rootURL != nil else { return [] }
         
         var exactDuplicates: [String: [URL]] = [:]  // MD5 -> URLs
         var sizeBuckets: [Int64: [URL]] = [:]        // Size -> URLs (pre-filter)
