@@ -1,0 +1,37 @@
+name: FileFlow
+options:
+  bundleIdPrefix: com.fileflow
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15.0"
+  developmentLanguage: zh-Hans
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    PRODUCT_NAME: "FileFlow"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    INFOPLIST_FILE: "FileFlow/Info.plist"
+    GENERATE_INFOPLIST_FILE: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+targets:
+  FileFlow:
+    type: application
+    platform: macOS
+    sources:
+      - path: FileFlow
+        excludes:
+          - "**/*.xcassets"
+    resources:
+      - path: FileFlow/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fileflow.app
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+        COMBINE_HIDPI_IMAGES: YES
