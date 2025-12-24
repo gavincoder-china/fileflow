@@ -1057,9 +1057,10 @@ class DirectoryMonitorService: ObservableObject {
         
         return false
     }
+}
 
-    // MARK: - Rule Integration
-    
+// MARK: - Rule Integration
+extension FileFlowManager {
     /// Apply rules to a specific file
     func applyRules(to file: ManagedFile) async {
         // Reload file to get latest state/path
@@ -1072,29 +1073,5 @@ class DirectoryMonitorService: ObservableObject {
             print("🤖 Applying \(matched.count) rules to \(currentFile.displayName)")
             await RuleEngine.shared.execute(rules: matched, on: currentFile)
         }
-    }
-    
-    /// Simplified move wrapper for RuleEngine
-    func moveFile(_ file: ManagedFile, to category: PARACategory, subcategory: String?) async throws {
-        let sourceURL = URL(fileURLWithPath: file.newPath)
-        // Keep current name and tags
-        let tags = await DatabaseManager.shared.getTagsForFile(fileId: file.id)
-        
-        let _ = try moveAndRenameFile(from: sourceURL, to: category, subcategory: subcategory, newName: file.newName, tags: tags)
-    }
-    
-    // MARK: - Tag Management
-    
-    /// Update tags for a file and propagate to related files
-    func updateFileTags(for file: ManagedFile, tags: [Tag]) async {
-        // 1. Update DB
-        await DatabaseManager.shared.updateTags(fileId: file.id, tags: tags)
-        
-        // 2. Propagate
-        await TagPropagationService.shared.propagateTags(from: file, tags: tags)
-        
-        // 3. Apply to Finder
-        let url = URL(fileURLWithPath: file.newPath)
-        applyFinderTags(to: url, tags: tags)
     }
 }
