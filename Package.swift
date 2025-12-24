@@ -14,10 +14,7 @@ let package = Package(
         .executableTarget(
             name: "FileFlow",
             dependencies: [],
-            path: "FileFlow",
-            resources: [
-                .process("Info.plist")
-            ]
+            path: "FileFlow"
         )
     ]
 )

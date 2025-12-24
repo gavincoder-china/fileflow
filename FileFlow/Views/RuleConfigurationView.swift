@@ -100,9 +100,9 @@ struct RuleConfigurationView: View {
     
     private func runRulesNow() {
         Task {
-            let files = await DatabaseManager.shared.getRecentFiles(limit: 100)
+            let files = await DatabaseManager.shared.getRecentFiles(limit: AppConstants.Rules.batchProcessLimit)
             for file in files {
-                await FileFlowManager.shared.applyRules(to: file)
+                await RuleEngine.shared.applyRules(to: file)
             }
         }
     }

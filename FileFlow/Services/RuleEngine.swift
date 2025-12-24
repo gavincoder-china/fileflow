@@ -88,7 +88,7 @@ class RuleEngine {
         let actions = rules.flatMap { $0.actions }
         if actions.isEmpty { return }
         
-        print("🤖 RuleEngine executing \(actions.count) actions on \(file.displayName)")
+        Logger.rule("Executing \(actions.count) actions on \(file.displayName)")
         
         for action in actions {
             await performAction(action, on: file)
@@ -107,13 +107,10 @@ class RuleEngine {
                 
                 // Call FileFlowManager to move
                 do {
-                    // Note: We need to define moveFile logic that accepts strings or use existing logic
-                    // For now, let's assume we update the DB record and move file on disk if possible
-                    // Ideally FileFlowManager exposes a method for this.
                     try await FileFlowManager.shared.moveFile(file, to: category, subcategory: subcategory)
-                    print("✅ Rule Action: Moved to \(category.rawValue)")
+                    Logger.success("Rule Action: Moved to \(category.rawValue)")
                 } catch {
-                    print("❌ Rule Action Failed (Move): \(error)")
+                    Logger.error("Rule Action Failed (Move): \(error)")
                 }
             }
             
@@ -131,20 +128,35 @@ class RuleEngine {
             
             // Link tag to file
             await DatabaseManager.shared.saveFileTagRelation(fileId: file.id, tagId: tag.id)
-             // Also add the tag to the file object in memory if we were modifying it, but here we just update DB.
-             // But FileFlowManager might need to refresh UI.
-            print("✅ Rule Action: Added tag \(tagName)")
+            Logger.info("Rule Action: Added tag \(tagName)")
             
         case .delete:
-            // TODO: Move to Trash or Delete
-             do {
-                 let fileManager = FileManager.default
-                 try fileManager.removeItem(atPath: file.newPath)
-                 await DatabaseManager.shared.deleteFile(file.id) // Need to expose deleteFile
-                 print("✅ Rule Action: Deleted file")
-             } catch {
-                 print("❌ Rule Action Failed (Delete): \(error)")
-             }
-        }
-    }
+            // Move to Trash instead of permanent delete (safer, recoverable)
+            do {
+                let fileURL = URL(fileURLWithPath: file.newPath)
+                var trashedURL: NSURL?
+                try FileManager.default.trashItem(at: fileURL, resultingItemURL: &trashedURL)
+                await DatabaseManager.shared.deleteFile(file.id)
+                Logger.info("Rule Action: Moved file to Trash")
+            } catch {
+                Logger.error("Rule Action Failed (Delete): \(error)")
+            }
+         }
+     }
+     
+     // MARK: - High-Level Rule Application
+     
+     /// Apply all enabled rules to a specific file
+     func applyRules(to file: ManagedFile) async {
+         // Reload file to get latest state/path
+         guard let currentFile = await DatabaseManager.shared.getFile(byPath: file.newPath) else { return }
+         
+         let allRules = await DatabaseManager.shared.getAllRules()
+         let matched = evaluate(file: currentFile, rules: allRules)
+         
+         if !matched.isEmpty {
+             Logger.rule("Applying \(matched.count) rules to \(currentFile.displayName)")
+             await execute(rules: matched, on: currentFile)
+         }
+     }
 }

@@ -16,23 +16,26 @@ enum DocumentContentExtractor {
     /// - Parameter url: 文件 URL
     /// - Returns: 提取的文本内容
     static func extractText(from url: URL) async throws -> String {
-        let ext = url.pathExtension.lowercased()
-        
-        switch ext {
-        case "pdf":
-            return try extractPDF(url)
-        case "png", "jpg", "jpeg", "heic", "tiff", "bmp", "gif":
-            return try await extractImageOCR(url)
-        case "txt", "md", "markdown", "json", "xml", "html", "css", "js", "swift", "py":
-            return try String(contentsOf: url, encoding: .utf8)
-        case "rtf":
-            return try extractRTF(url)
-        case "doc", "docx":
-            return try extractDocx(url)
-        default:
-            // Try to read as plain text, return empty if fails
-            return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        }
+        // Run on background thread to prevent UI freeze
+        return try await Task.detached(priority: .userInitiated) {
+            let ext = url.pathExtension.lowercased()
+            
+            switch ext {
+            case "pdf":
+                return try extractPDF(url)
+            case "png", "jpg", "jpeg", "heic", "tiff", "bmp", "gif":
+                return try await extractImageOCR(url)
+            case "txt", "md", "markdown", "json", "xml", "html", "css", "js", "swift", "py":
+                return try String(contentsOf: url, encoding: .utf8)
+            case "rtf":
+                return try extractRTF(url)
+            case "doc", "docx":
+                return try extractDocx(url)
+            default:
+                // Try to read as plain text, return empty if fails
+                return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            }
+        }.value
     }
     
     // MARK: - PDF Extraction

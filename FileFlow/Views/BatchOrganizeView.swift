@@ -367,7 +367,7 @@ class BatchOrganizeViewModel: ObservableObject {
                 
                 await database.saveFile(file, tags: tags)
             } catch {
-                print("Error organizing file: \(error)")
+                Logger.error("Error organizing file: \(error)")
             }
         }
         

@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var selectedSidebarItem: SidebarItem = .dropZone
     @State private var selectedFileURL: URL?  // 用于驱动 sheet
     @State private var pendingFileURLs: [URL] = []  // 待处理的文件队列
+    @State private var selectedUploadMode: UploadMode = .smart  // Current upload mode
     
     enum SidebarItem: Hashable {
         case dropZone
@@ -29,28 +30,43 @@ struct ContentView: View {
                 .background(.ultraThinMaterial) // Sidebar translucency
         } detail: {
             ZStack {
-                // Global animated background
-                AuroraBackground()
+                // Background is now global in RootView
                 
                 switch selectedSidebarItem {
                 case .dropZone:
-                    MainDropZoneView(
+                    UnifiedHomeView(
                         selectedFileURL: $selectedFileURL,
-                        pendingFileURLs: $pendingFileURLs
+                        pendingFileURLs: $pendingFileURLs,
+                        onSearch: { query in
+                            appState.searchQuery = query
+                            selectedSidebarItem = .search
+                        },
+                        onFilesDropped: { mode in
+                            selectedUploadMode = mode
+                        }
                     )
+                    .id("dropZone")
                 case .category(let category):
                     CategoryView(category: category)
+                        .id(category)
                 case .tag(let tag):
                     TagFilesView(tag: tag)
+                        .id(tag.id)
                 case .search:
                     SearchView()
+                        .id("search")
                 case .graph:
                     TagGraphView()
+                        .id("graph")
                 case .tagManager:
                     TagManagerView()
+                        .id("tagManager")
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.clear) // Force clear detail background
         }
+        .background(Color.clear) // Force clear NavigationSplitView background
         .overlay(alignment: .bottom) {
             if !appState.pendingNewFiles.isEmpty {
                 NewFilesToast(count: appState.pendingNewFiles.count) {
@@ -68,16 +84,43 @@ struct ContentView: View {
             get: { !pendingFileURLs.isEmpty },
             set: { if !$0 { pendingFileURLs.removeAll() } }
         )) {
-            FileStackOrganizerView(
-                fileURLs: pendingFileURLs,
-                onComplete: {
-                    pendingFileURLs.removeAll()
-                    appState.refreshData()
-                },
-                onCancel: {
-                    pendingFileURLs.removeAll()
-                }
-            )
+            // Switch organizer view based on mode
+            switch selectedUploadMode {
+            case .smart:
+                FileStackOrganizerView(
+                    fileURLs: pendingFileURLs,
+                    mode: .smart,
+                    onComplete: {
+                        pendingFileURLs.removeAll()
+                        appState.refreshData()
+                    },
+                    onCancel: {
+                        pendingFileURLs.removeAll()
+                    }
+                )
+            case .manual:
+                ManualBatchView(
+                    fileURLs: pendingFileURLs,
+                    onComplete: {
+                        pendingFileURLs.removeAll()
+                        appState.refreshData()
+                    },
+                    onCancel: {
+                        pendingFileURLs.removeAll()
+                    }
+                )
+            case .mirror:
+                MirrorImportView(
+                    fileURLs: pendingFileURLs,
+                    onComplete: {
+                        pendingFileURLs.removeAll()
+                        appState.refreshData()
+                    },
+                    onCancel: {
+                        pendingFileURLs.removeAll()
+                    }
+                )
+            }
         }
         .fileImporter(
             isPresented: $appState.showFileImporter,
@@ -93,6 +136,7 @@ struct ContentView: View {
             BatchOrganizeView()
                 .environmentObject(appState)
         }
+        .scrollContentBackground(.hidden) // Ensure all detail views are transparent
     }
 }
 
@@ -140,75 +184,72 @@ struct SidebarView: View {
     @EnvironmentObject var appState: AppState
     @Binding var selectedItem: ContentView.SidebarItem
     
-    private var displayedTags: [Tag] {
-        let favorites = appState.allTags.filter { $0.isFavorite }
-        if favorites.isEmpty {
-            // Fallback: Show top 5 used tags if no favorites
-            return Array(appState.allTags.sorted { $0.usageCount > $1.usageCount }.prefix(5))
-        }
-        return favorites
-    }
-    
     var body: some View {
-        List(selection: $selectedItem) {
+        List {
             // Quick Actions
             Section("快速操作") {
-                Label("拖拽整理", systemImage: "square.and.arrow.down.fill")
-                    .tag(ContentView.SidebarItem.dropZone)
+                SidebarItemRow(
+                    title: "拖拽整理",
+                    icon: "square.and.arrow.down.fill",
+                    isSelected: selectedItem == .dropZone,
+                    color: .blue
+                ) { selectedItem = .dropZone }
                 
-                Label("搜索", systemImage: "magnifyingglass")
-                    .tag(ContentView.SidebarItem.search)
+                SidebarItemRow(
+                    title: "搜索",
+                    icon: "magnifyingglass",
+                    isSelected: selectedItem == .search,
+                    color: .blue
+                ) { selectedItem = .search }
                 
-                Label("知识图谱", systemImage: "network")
-                    .tag(ContentView.SidebarItem.graph)
+                SidebarItemRow(
+                    title: "知识图谱",
+                    icon: "network",
+                    isSelected: selectedItem == .graph,
+                    color: .indigo
+                ) { selectedItem = .graph }
             }
+            .designRounded()
             
             // PARA Categories
             Section("分类") {
                 ForEach(PARACategory.allCases) { category in
-                    Label(category.displayName, systemImage: category.icon)
-                        .foregroundStyle(category.color)
-                        .tag(ContentView.SidebarItem.category(category))
+                    SidebarItemRow(
+                        title: category.displayName,
+                        icon: category.icon,
+                        isSelected: selectedItem == .category(category),
+                        color: category.color
+                    ) { selectedItem = .category(category) }
                 }
             }
+            .designRounded()
             
             // Recent Tags - Collapsible
             Section {
-                ForEach(displayedTags) { tag in
-                    HStack {
-                        Circle()
-                            .fill(tag.swiftUIColor)
-                            .frame(width: 8, height: 8)
-                        Text(tag.name.isEmpty ? "无名称" : tag.name)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(tag.usageCount)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .tag(ContentView.SidebarItem.tag(tag))
+                ForEach(appState.sidebarTags) { tag in
+                    SidebarTagRow(
+                        tag: tag,
+                        isSelected: selectedItem == .tag(tag)
+                    ) { selectedItem = .tag(tag) }
                 }
                 
-                // Show more/less button
-                if appState.allTags.filter({ $0.isFavorite }).isEmpty && appState.allTags.count > 5 {
-                    // Only show "More" hint if we are in fallback mode
-                    HStack {
-                        Spacer()
-                        Text("仅显示前5个常用标签")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Spacer()
-                    }
-                    .padding(.top, 4)
-                }
+                // Manage Tags Entry
+                SidebarItemRow(
+                    title: "管理所有标签...",
+                    icon: "slider.horizontal.3",
+                    isSelected: selectedItem == .tagManager,
+                    color: .secondary
+                ) { selectedItem = .tagManager }
+                    
             } header: {
                 HStack {
                     Text("常用标签")
+                        .designRounded()
                     Spacer()
                     Button {
                         selectedItem = .tagManager
                     } label: {
-                        Image(systemName: "slider.horizontal.3") // Manage icon
+                        Image(systemName: "plus.circle")
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -216,257 +257,75 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .frame(minWidth: 200)
+        .frame(minWidth: 230)
     }
 }
 
-
-// MARK: - Main Drop Zone View
-// MARK: - Main Drop Zone View
-struct MainDropZoneView: View {
-    @EnvironmentObject var appState: AppState
-    @Binding var selectedFileURL: URL?
-    @Binding var pendingFileURLs: [URL]
-    @State private var isTargeted = false
+struct SidebarItemRow: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let color: Color
+    let action: () -> Void
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("FileFlow")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                    Text("智能文件整理系统")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 24)
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .sidebarSelection(isSelected: isSelected, color: color)
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+}
+
+struct SidebarTagRow: View {
+    let tag: Tag
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(tag.swiftUIColor)
+                    .frame(width: 8, height: 8)
+                    .padding(.leading, 8)
+                
+                Text(tag.name.isEmpty ? "无名称" : tag.name)
+                    .font(.system(size: 14))
+                    .lineLimit(1)
+                
                 Spacer()
-            }
-            .padding(32)
-            
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Drop Zone
-                    DropZoneCard(isTargeted: $isTargeted)
-                        .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-                            handleDrop(providers: providers)
-                            return true
-                        }
-                    
-                    // Recent Files
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("最近整理")
-                                .font(.title3)
-                                .fontWeight(.semibold)
-                            Spacer()
-                            Button("查看全部") {
-                                // TODO: Navigate
-                            }
-                            .buttonStyle(.link)
-                        }
-                        .padding(.horizontal, 4)
-                        
-                        if appState.recentFiles.isEmpty {
-                            ContentUnavailableView(
-                                "暂无文件",
-                                systemImage: "doc.on.doc",
-                                description: Text("拖拽文件到上方区域开始整理")
-                            )
-                            .frame(height: 150)
-                            .glass()
-                        } else {
-                            LazyVStack(spacing: 12) {
-                                ForEach(appState.recentFiles.prefix(10)) { file in
-                                    RecentFileRow(file: file)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
-            }
-        }
-    }
-    
-    private func handleDrop(providers: [NSItemProvider]) {
-        for provider in providers {
-            // 优先尝试作为 File URL 加载
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, error in
-                    guard let data = data,
-                          let path = String(data: data, encoding: .utf8),
-                          let url = URL(string: path) else {
-                        print("❌ Failed to decode file URL: \(String(describing: error))")
-                        return
-                    }
-                    
-                    Task { @MainActor in
-                        // Add to queue
-                        if !self.pendingFileURLs.contains(url) {
-                            self.pendingFileURLs.append(url)
-                            print("✅ Dropped file: \(url.lastPathComponent)")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Drop Zone Card
-// MARK: - Drop Zone Card
-struct DropZoneCard: View {
-    @Binding var isTargeted: Bool
-    
-    var body: some View {
-        ZStack {
-            // MARK: Ghost Cards (Stack Effect)
-            // Left tilted card
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(isTargeted ? .blue.opacity(0.3) : .clear, lineWidth: 2)
-                .background(isTargeted ? .blue.opacity(0.05) : .clear)
-                .glass(cornerRadius: 24, material: .ultraThin)
-                .frame(height: 220)
-                .rotationEffect(.degrees(isTargeted ? -6 : 0))
-                .offset(x: isTargeted ? -20 : 0, y: isTargeted ? 10 : 0)
-                .opacity(isTargeted ? 1 : 0)
-                .scaleEffect(0.9)
-            
-            // Right tilted card
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(isTargeted ? .blue.opacity(0.3) : .clear, lineWidth: 2)
-                .background(isTargeted ? .blue.opacity(0.05) : .clear)
-                .glass(cornerRadius: 24, material: .ultraThin)
-                .frame(height: 220)
-                .rotationEffect(.degrees(isTargeted ? 6 : 0))
-                .offset(x: isTargeted ? 20 : 0, y: isTargeted ? 10 : 0)
-                .opacity(isTargeted ? 1 : 0)
-                .scaleEffect(0.9)
-            
-            // MARK: Main Card
-            ZStack {
-                // Animated border/glow when targeted
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(
-                        isTargeted ? Color.blue.opacity(0.8) : Color.secondary.opacity(0.2),
-                        style: StrokeStyle(lineWidth: isTargeted ? 3 : 2, dash: isTargeted ? [] : [10, 5])
-                    )
-                    .background(isTargeted ? Color.blue.opacity(0.1) : Color.clear)
-                    .shadow(color: isTargeted ? .blue.opacity(0.3) : .clear, radius: 15)
                 
-                VStack(spacing: 20) {
-                    ZStack {
-                        // Icon Background
-                        Circle()
-                            .fill(isTargeted ? Color.blue.opacity(0.2) : Color.secondary.opacity(0.05))
-                            .frame(width: 80, height: 80)
-                            .scaleEffect(isTargeted ? 1.1 : 1.0)
-                        
-                        // Icon
-                        Image(systemName: isTargeted ? "square.stack.3d.down.right.fill" : "arrow.down.doc")
-                            .font(.system(size: 36))
-                            .foregroundStyle(isTargeted ? .blue : .secondary)
-                            .symbolEffect(.bounce, value: isTargeted)
-                    }
-                    
-                    VStack(spacing: 6) {
-                        Text(isTargeted ? "松手即可批量导入" : "将文件拖拽到此处")
-                            .font(.title3)
-                            .fontWeight(.medium)
-                            .foregroundStyle(isTargeted ? .blue : .primary)
-                        
-                        Text(isTargeted ? "支持多文件同时上传" : "或点击开启文件选择器")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text("\(tag.usageCount)")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? .white.opacity(0.2) : .primary.opacity(0.05))
+                    .clipShape(Capsule())
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 240)
-            .glass(cornerRadius: 24, material: .regular)
-            .offset(y: isTargeted ? -10 : 0) // Lift up effect
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .sidebarSelection(isSelected: isSelected, color: tag.swiftUIColor)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            // Trigger file import (Parent view handles this usually via fileImporter binding, but here onTapGesture is placeholder? 
-            // Actually ContentView .onTapGesture on the container usually triggers it, need to verify bubble up)
-            // But let's keep consistent.
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isTargeted)
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 }
 
-// MARK: - Recent File Row
-struct RecentFileRow: View {
-    let file: ManagedFile
-    @State private var isHovering = false
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Icon
-            RichFileIcon(path: file.newPath)
-                .frame(width: 48, height: 48)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-            
-            // Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(file.newName.isEmpty ? file.originalName : file.newName)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .allowsTightening(true)
-                
-                HStack(spacing: 10) {
-                    Label(file.category.displayName, systemImage: file.category.icon)
-                        .font(.caption)
-                        .foregroundStyle(file.category.color)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(file.category.color.opacity(0.1))
-                        .cornerRadius(6)
-                    
-                    ForEach(file.tags.prefix(3)) { tag in
-                        Text("#\(tag.name)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            
-            Spacer()
-            
-            // Meta
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(file.importedAt.timeAgo())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    
-                if isHovering {
-                    Button {
-                        FileFlowManager.shared.revealInFinder(url: URL(fileURLWithPath: file.newPath))
-                    } label: {
-                        Image(systemName: "folder.fill")
-                            .foregroundStyle(.blue.opacity(0.8))
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                }
-            }
-        }
-        .padding(12)
-        .glass(cornerRadius: 16, material: .ultraThin, shadowRadius: isHovering ? 4 : 0)
-        .scaleEffect(isHovering ? 1.01 : 1.0)
-        .animation(.spring(response: 0.3), value: isHovering)
-        .onHover { hovering in
-            isHovering = hovering
-        }
-    }
-}
 
-// MARK: - Date Extension
+
+
 extension Date {
     func timeAgo() -> String {
         let formatter = RelativeDateTimeFormatter()
@@ -477,14 +336,24 @@ extension Date {
 }
 
 // MARK: - Preview
+// Note: #Preview macro not supported in SwiftPM, use Xcode for previews
+/*
 #Preview {
     ContentView()
         .environmentObject(AppState())
         .frame(width: 900, height: 600)
 }
+*/
 
 // MARK: - URL Identifiable Extension
 extension URL: @retroactive Identifiable {
     public var id: String { self.absoluteString }
+}
+
+// MARK: - Formatting Helpers
+extension View {
+    func designRounded() -> some View {
+        self.fontDesign(.rounded)
+    }
 }
 

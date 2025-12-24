@@ -76,8 +76,14 @@ struct RootView: View {
                     appState.refreshData()
                 })
             } else {
-                ContentView()
-                    .frame(minWidth: 900, minHeight: 600)
+                ZStack {
+                    AuroraBackground()
+                        .id(appState.wallpaperURL)
+                    
+                    ContentView()
+                        .frame(minWidth: 900, minHeight: 600)
+                        .scrollContentBackground(.hidden) // Ensure all scrolls are transparent
+                }
             }
         }
         .sheet(isPresented: $appState.showRootSelector) {
@@ -185,8 +191,36 @@ class AppState: ObservableObject {
     @Published var selectedCategory: PARACategory = .resources
     @Published var recentFiles: [ManagedFile] = []
     @Published var allTags: [Tag] = []
+    @Published var sidebarTags: [Tag] = [] // Optimized list for sidebar
     @Published var searchQuery = ""
     @Published var statistics: (totalFiles: Int, totalSize: Int64, byCategory: [PARACategory: Int])?
+    
+    // 背景壁纸设置
+    @Published var wallpaperURL: URL?
+    
+    @AppStorage("useBingWallpaper") var useBingWallpaper = false {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("wallpaperBlur") var wallpaperBlur: Double = 20.0 {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("wallpaperOpacity") var wallpaperOpacity: Double = 0.5 {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("showGlassOverlay") var showGlassOverlay = true {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("wallpaperIndex") var wallpaperIndex = 0 {
+        willSet { objectWillChange.send() }
+    }
+    
+    // 侧边栏标签配置
+    @AppStorage("sidebarShowFavorites") var sidebarShowFavorites = true {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("sidebarTopTagsCount") var sidebarTopTagsCount = 20 {
+        willSet { objectWillChange.send() }
+    }
     
     // 文件夹监控
     @Published var monitoredFolder: URL? {
@@ -197,7 +231,7 @@ class AppState: ObservableObject {
                     let bookmark = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
                     UserDefaults.standard.set(bookmark, forKey: "monitoredFolderBookmark")
                 } catch {
-                    print("无法保存监控目录书签: \(error)")
+                    Logger.error("无法保存监控目录书签: \(error)")
                 }
                 directoryMonitor.startMonitoring(url: url)
             } else {
@@ -223,6 +257,27 @@ class AppState: ObservableObject {
         }
         
         setupMonitoring()
+        
+        if useBingWallpaper {
+            fetchDailyWallpaper(index: wallpaperIndex)
+        }
+    }
+    
+    func fetchDailyWallpaper(index: Int? = nil) {
+        let fetchIndex = index ?? wallpaperIndex
+        Task {
+            do {
+                let url = try await WallpaperService.shared.fetchDailyWallpaperURL(index: fetchIndex)
+                await MainActor.run {
+                    self.wallpaperURL = url
+                    if let idx = index {
+                        self.wallpaperIndex = idx
+                    }
+                }
+            } catch {
+                Logger.error("Failed to fetch wallpaper at index \(fetchIndex): \(error)")
+            }
+        }
     }
     
     private func setupMonitoring() {
@@ -241,7 +296,7 @@ class AppState: ObservableObject {
                 self.monitoredFolder = url
                 // 注意：这里不需要手动调用 startMonitoring，因为 didSet 会触发
             } catch {
-                print("无法恢复监控目录: \(error)")
+                Logger.error("无法恢复监控目录: \(error)")
                 UserDefaults.standard.removeObject(forKey: "monitoredFolderBookmark")
             }
         }
@@ -260,8 +315,35 @@ class AppState: ObservableObject {
         // Load recent files and tags from database
         Task { @MainActor in
             self.recentFiles = await database.getRecentFiles(limit: 20)
-            self.allTags = await database.getAllTags()
+            let tags = await database.getAllTags()
+            self.allTags = tags
             self.statistics = fileManager.getStatistics()
+            
+            // Optimized Sidebar Tags: Favorites + Top N Used (configurable)
+            // Calculate strictly on MainActor to avoid threading issues
+            var combinedTags: [Tag] = []
+            var seenIds = Set<UUID>()
+            
+            // 1. Favorites (if enabled)
+            if self.sidebarShowFavorites {
+                let favorites = tags.filter { $0.isFavorite }
+                for tag in favorites {
+                    if seenIds.insert(tag.id).inserted {
+                        combinedTags.append(tag)
+                    }
+                }
+            }
+            
+            // 2. Top Used (Top N, configurable)
+            let topUsed = tags.sorted { $0.usageCount > $1.usageCount }.prefix(self.sidebarTopTagsCount)
+            for tag in topUsed {
+                if seenIds.insert(tag.id).inserted {
+                    combinedTags.append(tag)
+                }
+            }
+            
+            self.sidebarTags = combinedTags
+            
             // Don't update ID here to avoid loops if called from init?
             // But refreshData calls this.
         }

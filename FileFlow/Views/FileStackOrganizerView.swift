@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FileStackOrganizerView: View {
     let fileURLs: [URL]
+    let mode: UploadMode
     let onComplete: () -> Void
     let onCancel: () -> Void
     
@@ -18,9 +19,13 @@ struct FileStackOrganizerView: View {
     
     var body: some View {
         ZStack {
-            AuroraBackground()
-                .blur(radius: 20)
-                .ignoresSafeArea()
+            // Simplified background for detail page to avoid rendering distortion
+            LinearGradient(
+                colors: [Color(nsColor: .windowBackgroundColor), Color(nsColor: .windowBackgroundColor).opacity(0.8)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
             
             if isAutoProcessing {
                 // Auto Processing UI
@@ -215,8 +220,28 @@ class BatchSessionManager: ObservableObject {
             if viewModels[url] == nil {
                 let vm = FileOrganizeViewModel(fileURL: url)
                 viewModels[url] = vm
+            }
+        }
+        
+        // Start throttled analysis
+        startThrottledAnalysis()
+    }
+    
+    private func startThrottledAnalysis() {
+        let maxConcurrent = 3
+        let urlsToProcess = viewModels.keys.filter { viewModels[$0]?.isAnalyzing == false && viewModels[$0]?.aiSummary == nil }
+        
+        Task {
+            // Use a semaphore or simple loop to limit concurrency
+            // Here we use a simpler approach: process in chunks or check running count
+            for url in urlsToProcess {
+                guard let vm = viewModels[url] else { continue }
                 
-                // Start parallel analysis immediately
+                // Wait if too many are running
+                while viewModels.values.filter({ $0.isAnalyzing }).count >= maxConcurrent {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s check
+                }
+                
                 Task {
                     await vm.loadInitialData()
                 }
@@ -268,15 +293,10 @@ struct SingleFileCardView: View {
                 .disabled(viewModel.isSaving)
             }
             .padding()
-            .background(.ultraThinMaterial)
+            .background(.white.opacity(0.05))
         }
-        .background(.ultraThinMaterial) // Card background
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+        .frame(maxWidth: .infinity)
+        .glass(cornerRadius: 32, material: .regular) // Single glass layer
         .padding(.horizontal, 32)
     }
 }
@@ -299,13 +319,8 @@ struct GhostFileCard: View {
             .padding()
             Spacer()
         }
-        .frame(height: 600) // Approx height match
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
+        .frame(height: 600)
+        .glass(cornerRadius: 32, material: .ultraThin)
         .padding(.horizontal, 32)
     }
 }

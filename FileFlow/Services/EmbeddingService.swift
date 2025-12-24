@@ -60,7 +60,7 @@ class EmbeddingService {
         providerType = type
         currentProvider = Self.createProvider(for: type)
         UserDefaults.standard.set(type.rawValue, forKey: "embeddingProvider")
-        print("🔄 Switched embedding provider to: \(type.displayName)")
+        Logger.info("Switched embedding provider to: \(type.displayName)")
     }
     
     private static func createProvider(for type: EmbeddingProviderType) -> EmbeddingProvider {
@@ -127,7 +127,7 @@ class LocalEmbeddingProvider: EmbeddingProvider {
         self.embedding = NLEmbedding.sentenceEmbedding(for: .english)
         
         if embedding == nil {
-            print("⚠️ NLEmbedding not available, falling back to word embedding")
+            Logger.warning("NLEmbedding not available, falling back to word embedding")
         }
     }
     

@@ -12,20 +12,19 @@
 import Foundation
 import SQLite3
 
-class DatabaseManager {
+actor DatabaseManager {
     static let shared = DatabaseManager()
     
     private var db: OpaquePointer?
     private var currentDbPath: String?
     
-    // Serial queue for thread-safe database operations
-    private let dbQueue = DispatchQueue(label: "com.fileflow.database", qos: .userInitiated)
+    // Actor handles serialization, no queue needed
     
     // SQLITE_TRANSIENT tells SQLite to make its own copy of the string
     private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     
     private init() {
-        openDatabase()
+         // Database will be opened lazily when accessed
     }
     
     deinit {
@@ -76,7 +75,7 @@ class DatabaseManager {
                 currentDbPath = dbPath
                 createTables()
             } else {
-                print("Error opening database at \(dbPath)")
+                Logger.error("Failed to open database at \(dbPath)")
             }
         }
     }
@@ -110,13 +109,39 @@ class DatabaseManager {
         sqlite3_finalize(stmt)
         
         if !hasIsFavorite {
-            print("⚠️ Migrating database: Adding is_favorite column to tags")
+            Logger.database("Migrating: Adding is_favorite column to tags")
             executeSQL("ALTER TABLE tags ADD COLUMN is_favorite INTEGER DEFAULT 0;")
         }
         
         if !hasParentId {
-            print("⚠️ Migrating database: Adding parent_id column to tags")
+            Logger.database("Migrating: Adding parent_id column to tags")
             executeSQL("ALTER TABLE tags ADD COLUMN parent_id TEXT;")
+        }
+        
+        // Check subcategories table for parent_subcategory_id column
+        checkAndMigrateSubcategories()
+    }
+    
+    private func checkAndMigrateSubcategories() {
+        let sql = "PRAGMA table_info(subcategories);"
+        var stmt: OpaquePointer?
+        var hasParentSubcategoryId = false
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let name = sqlite3_column_text(stmt, 1) {
+                    let columnName = String(cString: name)
+                    if columnName == "parent_subcategory_id" {
+                        hasParentSubcategoryId = true
+                    }
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        if !hasParentSubcategoryId {
+            Logger.database("Migrating: Adding parent_subcategory_id column to subcategories")
+            executeSQL("ALTER TABLE subcategories ADD COLUMN parent_subcategory_id TEXT;")
         }
     }
 
@@ -175,8 +200,10 @@ class DatabaseManager {
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             parent_category TEXT NOT NULL,
+            parent_subcategory_id TEXT,
             created_at TEXT,
-            UNIQUE(name, parent_category)
+            UNIQUE(name, parent_category, parent_subcategory_id),
+            FOREIGN KEY (parent_subcategory_id) REFERENCES subcategories(id)
         );
         """
         
@@ -242,19 +269,26 @@ class DatabaseManager {
         var errMsg: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, sql, nil, nil, &errMsg) != SQLITE_OK {
             if let errMsg = errMsg {
-                print("SQL Error: \(String(cString: errMsg))")
+                Logger.error("SQL Error: \(String(cString: errMsg))")
                 sqlite3_free(errMsg)
             }
         }
     }
     // MARK: - Tag Operations
     func saveTag(_ tag: Tag) async {
-        dbQueue.sync {
             openDatabase() // 确保数据库已打开
             
             let sql = """
-            INSERT OR REPLACE INTO tags (id, name, color, usage_count, is_favorite, parent_id, created_at, last_used_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO tags (id, name, color, usage_count, is_favorite, parent_id, created_at, last_used_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                color = excluded.color,
+                usage_count = excluded.usage_count,
+                is_favorite = excluded.is_favorite,
+                parent_id = excluded.parent_id,
+                created_at = excluded.created_at,
+                last_used_at = excluded.last_used_at;
             """
             
             var stmt: OpaquePointer?
@@ -284,55 +318,77 @@ class DatabaseManager {
                 
                 let result = sqlite3_step(stmt)
                 if result != SQLITE_DONE {
-                    print("❌ Tag save failed: \(result)")
+                    Logger.error("Tag save failed: \(result)")
                 }
             }
             sqlite3_finalize(stmt)
         }
-    }
+
 
 
     
     func toggleTagFavorite(_ tag: Tag) async {
-        var updatedTag = tag
-        updatedTag.isFavorite.toggle()
-        await saveTag(updatedTag)
+        openDatabase()
+        
+        // 直接使用 UPDATE 语句切换 is_favorite 状态，确保更新成功
+        let newFavoriteValue: Int32 = tag.isFavorite ? 0 : 1
+        let sql = "UPDATE tags SET is_favorite = ? WHERE id = ?;"
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let idString = tag.id.uuidString
+            sqlite3_bind_int(stmt, 1, newFavoriteValue)
+            sqlite3_bind_text(stmt, 2, idString, -1, SQLITE_TRANSIENT)
+            
+            let result = sqlite3_step(stmt)
+            if result == SQLITE_DONE {
+                let changesCount = sqlite3_changes(db)
+                if changesCount > 0 {
+                    Logger.database("Tag favorite toggled: \(tag.name) -> \(newFavoriteValue == 1 ? "favorite" : "unfavorite")")
+                } else {
+                    Logger.error("Toggle favorite failed: No rows updated for tag \(tag.name)")
+                }
+            } else {
+                Logger.error("Toggle favorite SQL failed with result: \(result)")
+            }
+        } else {
+            Logger.error("Failed to prepare toggle favorite SQL")
+        }
+        sqlite3_finalize(stmt)
     }
     
     func deleteTag(_ tag: Tag) async {
-        dbQueue.sync {
-            openDatabase()
-            
-            // 1. Delete file-tag relations
-            let deleteRelationsSql = "DELETE FROM file_tags WHERE tag_id = ?;"
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, deleteRelationsSql, -1, &stmt, nil) == SQLITE_OK {
-                let idString = tag.id.uuidString
-                sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
-                sqlite3_step(stmt)
-            }
-            sqlite3_finalize(stmt)
-            
-            // 2. Delete the tag itself
-            let deleteTagSql = "DELETE FROM tags WHERE id = ?;"
-            if sqlite3_prepare_v2(db, deleteTagSql, -1, &stmt, nil) == SQLITE_OK {
-                let idString = tag.id.uuidString
-                sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
-                let result = sqlite3_step(stmt)
-                if result == SQLITE_DONE {
-                    print("✅ Deleted tag: \(tag.name)")
-                } else {
-                    print("❌ Failed to delete tag: \(result)")
-                }
-            }
-            sqlite3_finalize(stmt)
+        openDatabase()
+        
+        // 1. Delete file-tag relations
+        let deleteRelationsSql = "DELETE FROM file_tags WHERE tag_id = ?;"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteRelationsSql, -1, &stmt, nil) == SQLITE_OK {
+            let idString = tag.id.uuidString
+            sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
         }
+        sqlite3_finalize(stmt)
+        
+        // 2. Delete the tag itself
+        let deleteTagSql = "DELETE FROM tags WHERE id = ?;"
+        if sqlite3_prepare_v2(db, deleteTagSql, -1, &stmt, nil) == SQLITE_OK {
+            let idString = tag.id.uuidString
+            sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
+            let result = sqlite3_step(stmt)
+            if result == SQLITE_DONE {
+                Logger.success("Deleted tag: \(tag.name)")
+            } else {
+                Logger.error("Failed to delete tag: \(result)")
+            }
+        }
+        sqlite3_finalize(stmt)
     }
 
     
     func renameTag(oldTag: Tag, newName: String) async throws {
         openDatabase()
-        print("🔄 Renaming tag \(oldTag.name) to \(newName)")
+        Logger.database("Renaming tag \(oldTag.name) to \(newName)")
         
         // 1. Update Tag Name in DB
         var updatedTag = oldTag
@@ -341,7 +397,7 @@ class DatabaseManager {
         
         // 2. Find all affected files
         let files = await getFilesWithTag(oldTag)
-        print("Found \(files.count) files to rename")
+        Logger.debug("Found \(files.count) files to rename")
         
         let fileManager = FileManager.default
         
@@ -377,7 +433,7 @@ class DatabaseManager {
             do {
                 // Rename on disk
                 try fileManager.moveItem(at: oldURL, to: newURL)
-                print("✅ Renamed file on disk: \(newFileName)")
+                Logger.fileOperation("Renamed on disk", path: newFileName)
                 
                 // Update File Record
                 var newFile = file
@@ -391,7 +447,7 @@ class DatabaseManager {
                 await saveFile(newFile, tags: tags)
                 
             } catch {
-                print("❌ Error renaming file: \(error)")
+                Logger.error("Error renaming file: \(error)")
                 // Continue to next file (best effort)
             }
         }
@@ -400,7 +456,7 @@ class DatabaseManager {
     func getAllTags() async -> [Tag] {
         openDatabase()
         
-        let sql = "SELECT * FROM tags ORDER BY usage_count DESC, last_used_at DESC;"
+        let sql = "SELECT id, name, color, usage_count, is_favorite, parent_id, created_at, last_used_at FROM tags ORDER BY usage_count DESC, last_used_at DESC;"
         var tags: [Tag] = []
         
         var stmt: OpaquePointer?
@@ -419,7 +475,7 @@ class DatabaseManager {
     func searchTags(matching query: String) async -> [Tag] {
         openDatabase()
         
-        let sql = "SELECT * FROM tags WHERE name LIKE ? ORDER BY usage_count DESC LIMIT 10;"
+        let sql = "SELECT id, name, color, usage_count, is_favorite, parent_id, created_at, last_used_at FROM tags WHERE name LIKE ? ORDER BY usage_count DESC LIMIT 10;"
         var tags: [Tag] = []
         
         var stmt: OpaquePointer?
@@ -580,73 +636,69 @@ class DatabaseManager {
     
     // MARK: - File Operations
     func saveFile(_ file: ManagedFile, tags: [Tag]) async {
-        dbQueue.sync {
-            openDatabase()
-            
-            // 计算相对路径
-            let relativePath = calculateRelativePath(for: file.newPath)
-            
-            let sql = """
-            INSERT OR REPLACE INTO files 
-            (id, original_name, new_name, original_path, current_path, relative_path, category, subcategory, summary, notes, file_size, file_type, created_at, imported_at, modified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """
-            
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                let formatter = ISO8601DateFormatter()
-                
-                // Use local variables to ensure string lifetime during binding
-                let idString = file.id.uuidString
-                let originalNameString = file.originalName
-                let newNameString = file.newName
-                let originalPathString = file.originalPath
-                let newPathString = file.newPath
-                let categoryString = file.category.rawValue
-                let fileTypeString = file.fileType
-                let createdAtString = formatter.string(from: file.createdAt)
-                let importedAtString = formatter.string(from: file.importedAt)
-                let modifiedAtString = formatter.string(from: file.modifiedAt)
-                
-                sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 2, originalNameString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 3, newNameString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 4, originalPathString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 5, newPathString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 6, relativePath, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 7, categoryString, -1, SQLITE_TRANSIENT)
-                
-                if let subcategory = file.subcategory {
-                    sqlite3_bind_text(stmt, 8, subcategory, -1, SQLITE_TRANSIENT)
-                } else {
-                    sqlite3_bind_null(stmt, 8)
-                }
-                
-                if let summary = file.summary {
-                    sqlite3_bind_text(stmt, 9, summary, -1, SQLITE_TRANSIENT)
-                } else {
-                    sqlite3_bind_null(stmt, 9)
-                }
-                
-                if let notes = file.notes {
-                    sqlite3_bind_text(stmt, 10, notes, -1, SQLITE_TRANSIENT)
-                } else {
-                    sqlite3_bind_null(stmt, 10)
-                }
-                sqlite3_bind_int64(stmt, 11, file.fileSize)
-                sqlite3_bind_text(stmt, 12, fileTypeString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 13, createdAtString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 14, importedAtString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 15, modifiedAtString, -1, SQLITE_TRANSIENT)
-                
-                let result = sqlite3_step(stmt)
-                if result != SQLITE_DONE {
-                    print("❌ File save failed: \(result)")
-                }
-            }
-            sqlite3_finalize(stmt)
-        }
+        openDatabase()
         
+        // 计算相对路径
+        let relativePath = calculateRelativePath(for: file.newPath)
+        
+        let sql = """
+        INSERT OR REPLACE INTO files 
+        (id, original_name, new_name, original_path, current_path, relative_path, category, subcategory, summary, notes, file_size, file_type, created_at, imported_at, modified_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let formatter = ISO8601DateFormatter()
+            
+            let idString = file.id.uuidString
+            let originalNameString = file.originalName
+            let newNameString = file.newName
+            let originalPathString = file.originalPath
+            let newPathString = file.newPath
+            let categoryString = file.category.rawValue
+            let fileTypeString = file.fileType
+            let createdAtString = formatter.string(from: file.createdAt)
+            let importedAtString = formatter.string(from: file.importedAt)
+            let modifiedAtString = formatter.string(from: file.modifiedAt)
+            
+            sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, originalNameString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, newNameString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 4, originalPathString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 5, newPathString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 6, relativePath, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 7, categoryString, -1, SQLITE_TRANSIENT)
+            
+            if let subcategory = file.subcategory {
+                sqlite3_bind_text(stmt, 8, subcategory, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 8)
+            }
+            
+            if let summary = file.summary {
+                sqlite3_bind_text(stmt, 9, summary, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 9)
+            }
+            
+            if let notes = file.notes {
+                sqlite3_bind_text(stmt, 10, notes, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 10)
+            }
+            sqlite3_bind_int64(stmt, 11, file.fileSize)
+            sqlite3_bind_text(stmt, 12, fileTypeString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 13, createdAtString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 14, importedAtString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 15, modifiedAtString, -1, SQLITE_TRANSIENT)
+            
+            let result = sqlite3_step(stmt)
+            if result != SQLITE_DONE {
+                Logger.error("File save failed: \(result)")
+            }
+        }
+        sqlite3_finalize(stmt)
         
         // Clear existing tags
         let fileIdStr = file.id.uuidString
@@ -672,25 +724,22 @@ class DatabaseManager {
     }
     
     func saveFileTagRelation(fileId: UUID, tagId: UUID) async {
-        dbQueue.sync {
-            let sql = "INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?);"
+        let sql = "INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?);"
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let fileIdString = fileId.uuidString
+            let tagIdString = tagId.uuidString
             
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                // Use local variables to ensure string lifetime
-                let fileIdString = fileId.uuidString
-                let tagIdString = tagId.uuidString
-                
-                sqlite3_bind_text(stmt, 1, fileIdString, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 2, tagIdString, -1, SQLITE_TRANSIENT)
-                
-                let result = sqlite3_step(stmt)
-                if result != SQLITE_DONE {
-                    print("❌ File-tag relation save failed: \(result)")
-                }
+            sqlite3_bind_text(stmt, 1, fileIdString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, tagIdString, -1, SQLITE_TRANSIENT)
+            
+            let result = sqlite3_step(stmt)
+            if result != SQLITE_DONE {
+                Logger.error("File-tag relation save failed: \(result)")
             }
-            sqlite3_finalize(stmt)
         }
+        sqlite3_finalize(stmt)
     }
     
     func updateTags(fileId: UUID, tags: [Tag]) async {
@@ -704,13 +753,11 @@ class DatabaseManager {
     }
     
     func deleteFile(_ fileId: UUID) async {
-        dbQueue.sync {
-            openDatabase()
-            let id = fileId.uuidString
-            executeSQL("DELETE FROM files WHERE id = '\(id)';")
-            executeSQL("DELETE FROM file_tags WHERE file_id = '\(id)';")
-            executeSQL("DELETE FROM file_embeddings WHERE file_id = '\(id)';")
-        }
+        openDatabase()
+        let id = fileId.uuidString
+        executeSQL("DELETE FROM files WHERE id = '\(id)';")
+        executeSQL("DELETE FROM file_tags WHERE file_id = '\(id)';")
+        executeSQL("DELETE FROM file_embeddings WHERE file_id = '\(id)';")
     }
 
     
@@ -914,7 +961,7 @@ class DatabaseManager {
     
     func getTagsForFile(fileId: UUID) async -> [Tag] {
         let sql = """
-        SELECT t.* FROM tags t
+        SELECT t.id, t.name, t.color, t.usage_count, t.is_favorite, t.parent_id, t.created_at, t.last_used_at FROM tags t
         JOIN file_tags ft ON t.id = ft.tag_id
         WHERE ft.file_id = ?;
         """
@@ -993,8 +1040,8 @@ class DatabaseManager {
         openDatabase()
         
         let sql = """
-        INSERT OR IGNORE INTO subcategories (id, name, parent_category, created_at)
-        VALUES (?, ?, ?, ?);
+        INSERT OR IGNORE INTO subcategories (id, name, parent_category, parent_subcategory_id, created_at)
+        VALUES (?, ?, ?, ?, ?);
         """
         
         var stmt: OpaquePointer?
@@ -1006,7 +1053,15 @@ class DatabaseManager {
             sqlite3_bind_text(stmt, 1, idString, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 2, nameString, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 3, parentString, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 4, createdAtString, -1, SQLITE_TRANSIENT)
+            
+            // Bind parent_subcategory_id (nullable)
+            if let parentSubId = subcategory.parentSubcategoryId {
+                sqlite3_bind_text(stmt, 4, parentSubId.uuidString, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 4)
+            }
+            
+            sqlite3_bind_text(stmt, 5, createdAtString, -1, SQLITE_TRANSIENT)
             sqlite3_step(stmt)
         }
         sqlite3_finalize(stmt)
@@ -1015,7 +1070,7 @@ class DatabaseManager {
     func getSubcategories(for category: PARACategory) async -> [Subcategory] {
         openDatabase()
         
-        let sql = "SELECT * FROM subcategories WHERE parent_category = ? ORDER BY name;"
+        let sql = "SELECT id, name, parent_category, parent_subcategory_id, created_at FROM subcategories WHERE parent_category = ? ORDER BY name;"
         var subcategories: [Subcategory] = []
         
         var stmt: OpaquePointer?
@@ -1026,10 +1081,15 @@ class DatabaseManager {
             while sqlite3_step(stmt) == SQLITE_ROW {
                 if let idStr = sqlite3_column_text(stmt, 0),
                    let nameStr = sqlite3_column_text(stmt, 1) {
+                    var parentSubId: UUID? = nil
+                    if let parentSubIdStr = sqlite3_column_text(stmt, 3) {
+                        parentSubId = UUID(uuidString: String(cString: parentSubIdStr))
+                    }
                     let subcategory = Subcategory(
                         id: UUID(uuidString: String(cString: idStr)) ?? UUID(),
                         name: String(cString: nameStr),
-                        parentCategory: category
+                        parentCategory: category,
+                        parentSubcategoryId: parentSubId
                     )
                     subcategories.append(subcategory)
                 }
@@ -1038,6 +1098,111 @@ class DatabaseManager {
         sqlite3_finalize(stmt)
         
         return subcategories
+    }
+    
+    /// Get all subcategories across all categories
+    func getAllSubcategories() async -> [Subcategory] {
+        openDatabase()
+        
+        let sql = "SELECT id, name, parent_category, parent_subcategory_id, created_at FROM subcategories ORDER BY parent_category, name;"
+        var subcategories: [Subcategory] = []
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let idStr = sqlite3_column_text(stmt, 0),
+                   let nameStr = sqlite3_column_text(stmt, 1),
+                   let catStr = sqlite3_column_text(stmt, 2),
+                   let category = PARACategory(rawValue: String(cString: catStr)) {
+                    var parentSubId: UUID? = nil
+                    if let parentSubIdStr = sqlite3_column_text(stmt, 3) {
+                        parentSubId = UUID(uuidString: String(cString: parentSubIdStr))
+                    }
+                    let subcategory = Subcategory(
+                        id: UUID(uuidString: String(cString: idStr)) ?? UUID(),
+                        name: String(cString: nameStr),
+                        parentCategory: category,
+                        parentSubcategoryId: parentSubId
+                    )
+                    subcategories.append(subcategory)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return subcategories
+    }
+    
+    func renameSubcategory(oldName: String, newName: String, category: PARACategory) async {
+        openDatabase()
+        
+        // 1. Update subcategories table
+        let updateSubSql = "UPDATE subcategories SET name = ? WHERE name = ? AND parent_category = ?;"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateSubSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, newName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, oldName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, category.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+        
+        // 2. Update files table
+        let updateFilesSql = "UPDATE files SET subcategory = ? WHERE subcategory = ? AND category = ?;"
+        if sqlite3_prepare_v2(db, updateFilesSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, newName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, oldName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, category.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    func deleteSubcategory(name: String, category: PARACategory) async {
+        openDatabase()
+        
+        // 1. Delete from subcategories table
+        let deleteSql = "DELETE FROM subcategories WHERE name = ? AND parent_category = ?;"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, category.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+        
+        // 2. Clear subcategory from files (move to root of category)
+        let updateFilesSql = "UPDATE files SET subcategory = NULL WHERE subcategory = ? AND category = ?;"
+        if sqlite3_prepare_v2(db, updateFilesSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, category.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    func mergeSubcategories(from sourceName: String, to targetName: String, category: PARACategory) async {
+        openDatabase()
+        
+        // 1. Delete source subcategory
+        let deleteSql = "DELETE FROM subcategories WHERE name = ? AND parent_category = ?;"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sourceName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, category.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+        
+        // 2. Move files from source to target
+        let updateFilesSql = "UPDATE files SET subcategory = ? WHERE subcategory = ? AND category = ?;"
+        if sqlite3_prepare_v2(db, updateFilesSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, targetName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, sourceName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, category.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
     }
     
     // MARK: - Rebuild Index
@@ -1120,37 +1285,35 @@ class DatabaseManager {
     
     /// Save file embedding to database
     func saveFileEmbedding(fileId: UUID, embedding: [Float], provider: String) async {
-        dbQueue.sync {
-            openDatabase()
+        openDatabase()
+        
+        let sql = """
+        INSERT OR REPLACE INTO file_embeddings (file_id, embedding, provider, created_at)
+        VALUES (?, ?, ?, ?);
+        """
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let fileIdString = fileId.uuidString
+            let createdAt = ISO8601DateFormatter().string(from: Date())
             
-            let sql = """
-            INSERT OR REPLACE INTO file_embeddings (file_id, embedding, provider, created_at)
-            VALUES (?, ?, ?, ?);
-            """
-            
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                let fileIdString = fileId.uuidString
-                let createdAt = ISO8601DateFormatter().string(from: Date())
-                
-                // Convert [Float] to Data (BLOB)
-                let embeddingData = embedding.withUnsafeBufferPointer { buffer in
-                    Data(buffer: buffer)
-                }
-                
-                sqlite3_bind_text(stmt, 1, fileIdString, -1, SQLITE_TRANSIENT)
-                _ = embeddingData.withUnsafeBytes { ptr in
-                    sqlite3_bind_blob(stmt, 2, ptr.baseAddress, Int32(embeddingData.count), SQLITE_TRANSIENT)
-                }
-                sqlite3_bind_text(stmt, 3, provider, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 4, createdAt, -1, SQLITE_TRANSIENT)
-                
-                if sqlite3_step(stmt) != SQLITE_DONE {
-                    print("❌ Embedding save failed")
-                }
+            // Convert [Float] to Data (BLOB)
+            let embeddingData = embedding.withUnsafeBufferPointer { buffer in
+                Data(buffer: buffer)
             }
-            sqlite3_finalize(stmt)
+            
+            sqlite3_bind_text(stmt, 1, fileIdString, -1, SQLITE_TRANSIENT)
+            _ = embeddingData.withUnsafeBytes { ptr in
+                sqlite3_bind_blob(stmt, 2, ptr.baseAddress, Int32(embeddingData.count), SQLITE_TRANSIENT)
+            }
+            sqlite3_bind_text(stmt, 3, provider, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 4, createdAt, -1, SQLITE_TRANSIENT)
+            
+            if sqlite3_step(stmt) != SQLITE_DONE {
+                Logger.error("Embedding save failed")
+            }
         }
+        sqlite3_finalize(stmt)
     }
     
     /// Get all file embeddings for similarity search
@@ -1212,58 +1375,56 @@ class DatabaseManager {
     
     // MARK: - Auto Rule Operations
     func saveRule(_ rule: AutoRule) async {
-        dbQueue.sync {
-            openDatabase()
+        openDatabase()
+        
+        // 1. Insert Rule
+        let ruleSql = "INSERT OR REPLACE INTO rules (id, name, is_enabled, match_type, created_at) VALUES (?, ?, ?, ?, ?);"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, ruleSql, -1, &stmt, nil) == SQLITE_OK {
+            let id = rule.id.uuidString
+            let name = rule.name
+            let enabled = rule.isEnabled ? 1 : 0
+            let matchType = rule.matchType.rawValue
+            let createdAt = ISO8601DateFormatter().string(from: rule.createdAt)
             
-            // 1. Insert Rule
-            let ruleSql = "INSERT OR REPLACE INTO rules (id, name, is_enabled, match_type, created_at) VALUES (?, ?, ?, ?, ?);"
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, ruleSql, -1, &stmt, nil) == SQLITE_OK {
-                let id = rule.id.uuidString
-                let name = rule.name
-                let enabled = rule.isEnabled ? 1 : 0
-                let matchType = rule.matchType.rawValue
-                let createdAt = ISO8601DateFormatter().string(from: rule.createdAt)
-                
-                sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 2, name, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_int(stmt, 3, Int32(enabled))
-                sqlite3_bind_text(stmt, 4, matchType, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(stmt, 5, createdAt, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, name, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(stmt, 3, Int32(enabled))
+            sqlite3_bind_text(stmt, 4, matchType, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 5, createdAt, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+        
+        // 2. Delete existing conditions/actions
+        executeSQL("DELETE FROM rule_conditions WHERE rule_id = '\(rule.id.uuidString)';")
+        executeSQL("DELETE FROM rule_actions WHERE rule_id = '\(rule.id.uuidString)';")
+        
+        // 3. Insert Conditions
+        let condSql = "INSERT INTO rule_conditions (id, rule_id, field, operator, value) VALUES (?, ?, ?, ?, ?);"
+        for cond in rule.conditions {
+            if sqlite3_prepare_v2(db, condSql, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, cond.id.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 2, rule.id.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 3, cond.field.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 4, cond.operator.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 5, cond.value, -1, SQLITE_TRANSIENT)
                 sqlite3_step(stmt)
             }
             sqlite3_finalize(stmt)
-            
-            // 2. Delete existing conditions/actions
-            executeSQL("DELETE FROM rule_conditions WHERE rule_id = '\(rule.id.uuidString)';")
-            executeSQL("DELETE FROM rule_actions WHERE rule_id = '\(rule.id.uuidString)';")
-            
-            // 3. Insert Conditions
-            let condSql = "INSERT INTO rule_conditions (id, rule_id, field, operator, value) VALUES (?, ?, ?, ?, ?);"
-            for cond in rule.conditions {
-                if sqlite3_prepare_v2(db, condSql, -1, &stmt, nil) == SQLITE_OK {
-                    sqlite3_bind_text(stmt, 1, cond.id.uuidString, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 2, rule.id.uuidString, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 3, cond.field.rawValue, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 4, cond.operator.rawValue, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 5, cond.value, -1, SQLITE_TRANSIENT)
-                    sqlite3_step(stmt)
-                }
-                sqlite3_finalize(stmt)
+        }
+        
+        // 4. Insert Actions
+        let actSql = "INSERT INTO rule_actions (id, rule_id, type, target_value) VALUES (?, ?, ?, ?);"
+        for action in rule.actions {
+            if sqlite3_prepare_v2(db, actSql, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, action.id.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 2, rule.id.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 3, action.type.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(stmt, 4, action.targetValue, -1, SQLITE_TRANSIENT)
+                sqlite3_step(stmt)
             }
-            
-            // 4. Insert Actions
-            let actSql = "INSERT INTO rule_actions (id, rule_id, type, target_value) VALUES (?, ?, ?, ?);"
-            for action in rule.actions {
-                if sqlite3_prepare_v2(db, actSql, -1, &stmt, nil) == SQLITE_OK {
-                    sqlite3_bind_text(stmt, 1, action.id.uuidString, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 2, rule.id.uuidString, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 3, action.type.rawValue, -1, SQLITE_TRANSIENT)
-                    sqlite3_bind_text(stmt, 4, action.targetValue, -1, SQLITE_TRANSIENT)
-                    sqlite3_step(stmt)
-                }
-                sqlite3_finalize(stmt)
-            }
+            sqlite3_finalize(stmt)
         }
     }
     
@@ -1284,7 +1445,7 @@ class DatabaseManager {
                     let isEnabled = sqlite3_column_int(stmt, 2) != 0
                     let matchType = RuleMatchType(rawValue: String(cString: matchTypeStr)) ?? .all
                     
-                    var rule = AutoRule(id: id, name: name, isEnabled: isEnabled, matchType: matchType)
+                    let rule = AutoRule(id: id, name: name, isEnabled: isEnabled, matchType: matchType)
                     rules.append(rule)
                 }
             }
@@ -1354,12 +1515,10 @@ class DatabaseManager {
     }
     
     func deleteRule(_ ruleId: UUID) async {
-        dbQueue.sync {
-            openDatabase()
-            let id = ruleId.uuidString
-            executeSQL("DELETE FROM rules WHERE id = '\(id)';")
-            executeSQL("DELETE FROM rule_conditions WHERE rule_id = '\(id)';")
-            executeSQL("DELETE FROM rule_actions WHERE rule_id = '\(id)';")
-        }
+        openDatabase()
+        let id = ruleId.uuidString
+        executeSQL("DELETE FROM rules WHERE id = '\(id)';")
+        executeSQL("DELETE FROM rule_conditions WHERE rule_id = '\(id)';")
+        executeSQL("DELETE FROM rule_actions WHERE rule_id = '\(id)';")
     }
 }

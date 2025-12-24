@@ -35,7 +35,7 @@ class TagPropagationService {
         
         if siblings.isEmpty { return }
         
-        print("🔗 Propagating \(tags.count) tags to \(siblings.count) siblings of \(sourceBaseName)")
+        Logger.info("Propagating \(tags.count) tags to \(siblings.count) siblings of \(sourceBaseName)")
         
         // 4. Apply Tags
         for sibling in siblings {

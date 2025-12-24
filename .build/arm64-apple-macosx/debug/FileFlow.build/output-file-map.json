@@ -1,0 +1,292 @@
+{
+  "": {
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/master.swiftdeps"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/FileFlowApp.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowApp.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowApp.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowApp~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowApp.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowApp.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Managers/DatabaseManager.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DatabaseManager.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DatabaseManager.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DatabaseManager~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DatabaseManager.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DatabaseManager.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Managers/FileFlowManager.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowManager.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowManager.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowManager~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowManager.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileFlowManager.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Models/Constants.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Constants.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Constants.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Constants~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Constants.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Constants.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Models/Models.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Models.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Models.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Models~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Models.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Models.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Models/UploadMode.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UploadMode.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UploadMode.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UploadMode~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UploadMode.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UploadMode.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/AIService.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/AIService.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/AIService.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/AIService~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/AIService.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/AIService.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/ContentExtractor.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentExtractor.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentExtractor.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentExtractor~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentExtractor.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentExtractor.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/DeduplicationService.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DeduplicationService.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DeduplicationService.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DeduplicationService~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DeduplicationService.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DeduplicationService.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/EmbeddingService.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/EmbeddingService.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/EmbeddingService.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/EmbeddingService~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/EmbeddingService.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/EmbeddingService.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/Logger.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Logger.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Logger.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Logger~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Logger.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/Logger.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/RuleEngine.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleEngine.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleEngine.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleEngine~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleEngine.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleEngine.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/TagPropagationService.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagPropagationService.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagPropagationService.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagPropagationService~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagPropagationService.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagPropagationService.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Services/WallpaperService.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/WallpaperService.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/WallpaperService.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/WallpaperService~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/WallpaperService.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/WallpaperService.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/ViewModels/FileOrganizeViewModel.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeViewModel.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeViewModel.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeViewModel~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeViewModel.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeViewModel.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/BatchOrganizeView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/BatchOrganizeView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/BatchOrganizeView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/BatchOrganizeView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/BatchOrganizeView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/BatchOrganizeView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/CategoryView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/Components/CategoryFileListView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFileListView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFileListView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFileListView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFileListView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFileListView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/Components/CategoryFolderSidebar.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFolderSidebar.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFolderSidebar.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFolderSidebar~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFolderSidebar.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/CategoryFolderSidebar.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/Components/FileInspectorPane.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileInspectorPane.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileInspectorPane.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileInspectorPane~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileInspectorPane.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileInspectorPane.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/Components/MergeSubcategorySheet.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MergeSubcategorySheet.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MergeSubcategorySheet.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MergeSubcategorySheet~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MergeSubcategorySheet.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MergeSubcategorySheet.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/Components/MoveFileSheet.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MoveFileSheet.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MoveFileSheet.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MoveFileSheet~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MoveFileSheet.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MoveFileSheet.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/Components/SubcategoryGridView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SubcategoryGridView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SubcategoryGridView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SubcategoryGridView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SubcategoryGridView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SubcategoryGridView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/ContentView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ContentView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/DesignSystem.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DesignSystem.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DesignSystem.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DesignSystem~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DesignSystem.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/DesignSystem.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/FileOrganizeFormView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeFormView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeFormView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeFormView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeFormView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeFormView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/FileOrganizeSheet.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeSheet.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeSheet.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeSheet~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeSheet.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileOrganizeSheet.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/FileStackOrganizerView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileStackOrganizerView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileStackOrganizerView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileStackOrganizerView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileStackOrganizerView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FileStackOrganizerView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/FlowLayout.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FlowLayout.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FlowLayout.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FlowLayout~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FlowLayout.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FlowLayout.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/FolderTreePicker.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FolderTreePicker.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FolderTreePicker.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FolderTreePicker~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FolderTreePicker.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/FolderTreePicker.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/ManualBatchView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ManualBatchView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ManualBatchView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ManualBatchView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ManualBatchView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/ManualBatchView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/MirrorImportView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MirrorImportView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MirrorImportView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MirrorImportView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MirrorImportView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/MirrorImportView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/OnboardingView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/OnboardingView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/OnboardingView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/OnboardingView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/OnboardingView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/OnboardingView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/RichFileIcon.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RichFileIcon.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RichFileIcon.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RichFileIcon~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RichFileIcon.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RichFileIcon.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/RuleConfigurationView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleConfigurationView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleConfigurationView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleConfigurationView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleConfigurationView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/RuleConfigurationView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/SearchView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SearchView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SearchView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SearchView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SearchView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SearchView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/SettingsView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SettingsView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SettingsView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SettingsView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SettingsView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/SettingsView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/TagFilesView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagFilesView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagFilesView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagFilesView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagFilesView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagFilesView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/TagGraphView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagGraphView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagGraphView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagGraphView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagGraphView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagGraphView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/TagManagerView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagManagerView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagManagerView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagManagerView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagManagerView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/TagManagerView.dia"
+  },
+  "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/FileFlow/Views/UnifiedHomeView.swift": {
+    "dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UnifiedHomeView.d",
+    "object": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UnifiedHomeView.swift.o",
+    "swiftmodule": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UnifiedHomeView~partial.swiftmodule",
+    "swift-dependencies": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UnifiedHomeView.swiftdeps",
+    "diagnostics": "/Users/goodgoodstudy/Documents/project/new-knowledge-design/FileFlow/.build/arm64-apple-macosx/debug/FileFlow.build/UnifiedHomeView.dia"
+  }
+}

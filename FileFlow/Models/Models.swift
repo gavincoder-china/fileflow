@@ -7,6 +7,14 @@
 
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
+
+// MARK: - Custom UTType for Drag-and-Drop
+extension UTType {
+    static var managedFile: UTType {
+        UTType(exportedAs: "com.fileflow.managedfile")
+    }
+}
 
 // MARK: - PARA Category
 enum PARACategory: String, CaseIterable, Codable, Identifiable {
@@ -37,10 +45,10 @@ enum PARACategory: String, CaseIterable, Codable, Identifiable {
     
     var color: Color {
         switch self {
-        case .projects: return .blue
-        case .areas: return .purple
-        case .resources: return .green
-        case .archives: return .gray
+        case .projects: return Color(hex: "#4F46E5") ?? .blue      // Indigo
+        case .areas: return Color(hex: "#A855F7") ?? .purple       // Amethyst
+        case .resources: return Color(hex: "#10B981") ?? .green   // Emerald
+        case .archives: return Color(hex: "#64748B") ?? .gray      // Slate
         }
     }
     
@@ -94,7 +102,10 @@ struct Tag: Identifiable, Codable, Hashable {
 
 
 // MARK: - Managed File
-struct ManagedFile: Identifiable, Codable {
+struct ManagedFile: Identifiable, Codable, Transferable {
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .managedFile)
+    }
     let id: UUID
     var originalName: String
     var newName: String
@@ -173,13 +184,27 @@ struct Subcategory: Identifiable, Codable, Hashable {
     let id: UUID
     var name: String
     var parentCategory: PARACategory
+    var parentSubcategoryId: UUID?  // For nested folders (nil = direct child of category)
     var createdAt: Date
     
-    init(id: UUID = UUID(), name: String, parentCategory: PARACategory) {
+    init(id: UUID = UUID(), name: String, parentCategory: PARACategory, parentSubcategoryId: UUID? = nil) {
         self.id = id
         self.name = name
         self.parentCategory = parentCategory
+        self.parentSubcategoryId = parentSubcategoryId
         self.createdAt = Date()
+    }
+    
+    /// Full path from category root, e.g., "Web Design/Landing Pages"
+    func fullPath(allSubcategories: [Subcategory]) -> String {
+        var path = [name]
+        var current = self
+        while let parentId = current.parentSubcategoryId,
+              let parent = allSubcategories.first(where: { $0.id == parentId }) {
+            path.insert(parent.name, at: 0)
+            current = parent
+        }
+        return path.joined(separator: "/")
     }
 }
 

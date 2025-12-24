@@ -48,22 +48,25 @@ class FileOrganizeViewModel: ObservableObject {
     init(fileURL: URL) {
         self.fileURL = fileURL
         
-        // Get file info
-        let info = FileFlowManager.shared.getFileInfo(at: fileURL)
-        
         self.file = ManagedFile(
             originalName: fileURL.lastPathComponent,
             originalPath: fileURL.path,
             category: .resources,
-            fileSize: info?.size ?? 0,
-            fileType: info?.type ?? ""
+            fileSize: 0, // Metadata loaded asynchronously
+            fileType: ""
         )
-        
-        // 初始化时不调用异步操作，改由视图的 .task 调用
+        // 初始化时不进行磁盘 IO，由 loadInitialData 处理
     }
-    
+
     // MARK: - Load Data
     func loadInitialData() async {
+        // Load metadata asynchronously
+        let info = FileFlowManager.shared.getFileInfo(at: fileURL)
+        await MainActor.run {
+            self.file.fileSize = info?.size ?? 0
+            self.file.fileType = info?.type ?? ""
+        }
+        
         // Load recent tags
         recentTags = await database.getAllTags().prefix(10).map { $0 }
         
@@ -187,7 +190,7 @@ class FileOrganizeViewModel: ObservableObject {
             }
             
         } catch {
-            print("AI Analysis failed: \(error.localizedDescription)")
+            Logger.error("AI Analysis failed: \(error.localizedDescription)")
             await MainActor.run {
                 self.aiSummary = "AI 分析失败: \(error.localizedDescription)"
                 self.isAnalyzing = false
@@ -231,7 +234,7 @@ class FileOrganizeViewModel: ObservableObject {
             await TagPropagationService.shared.propagateTags(from: updatedFile, tags: selectedTags)
             
         } catch {
-            print("Error saving file: \(error)")
+            Logger.error("Error saving file: \(error)")
         }
         
         isSaving = false

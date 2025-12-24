@@ -22,7 +22,8 @@ struct FileOrganizeFormView: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .glass(cornerRadius: 12)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(12)
                 .padding(.horizontal)
             } else if let summary = viewModel.aiSummary, !summary.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -36,14 +37,16 @@ struct FileOrganizeFormView: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .glass(cornerRadius: 12)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(12)
                 .padding(.horizontal)
             }
             
             // Tags Card
             TagsSection(viewModel: viewModel)
                 .padding()
-                .glass(cornerRadius: 16)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(16)
                 .padding(.horizontal)
             
             // Category Card
@@ -59,13 +62,15 @@ struct FileOrganizeFormView: View {
                 FileNamePreviewSection(viewModel: viewModel)
             }
             .padding()
-            .glass(cornerRadius: 16)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(16)
             .padding(.horizontal)
             
             // Notes Card
             NotesSection(viewModel: viewModel)
                 .padding()
-                .glass(cornerRadius: 16)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(16)
                 .padding(.horizontal)
         }
         .padding(.vertical)

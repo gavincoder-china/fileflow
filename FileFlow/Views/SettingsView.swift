@@ -117,6 +117,104 @@ struct SettingsView: View {
                 Label("通用", systemImage: "gearshape")
             }
             
+            // Appearance Settings
+            Form {
+                Section("背景壁纸") {
+                    Toggle("使用 Bing 每日精选壁纸", isOn: $appState.useBingWallpaper)
+                        .onChange(of: appState.useBingWallpaper) { oldValue, newValue in
+                            if newValue && appState.wallpaperURL == nil {
+                                appState.fetchDailyWallpaper()
+                            }
+                        }
+                    
+                    if appState.useBingWallpaper {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("透明度")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $appState.wallpaperOpacity, in: 0...1)
+                            
+                            Text("模糊度")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $appState.wallpaperBlur, in: 0...50)
+                            
+                            Toggle("启用磨砂玻璃层", isOn: $appState.showGlassOverlay)
+                                .help("在壁纸上方添加一层半透明的材质（ultraThinMaterial），以增强文字的可读性。")
+                                .padding(.top, 4)
+                            
+                            HStack {
+                                Group {
+                                    Button {
+                                        if appState.wallpaperIndex < 7 {
+                                            appState.fetchDailyWallpaper(index: appState.wallpaperIndex + 1)
+                                        }
+                                    } label: {
+                                        Image(systemName: "chevron.left")
+                                    }
+                                    .disabled(appState.wallpaperIndex >= 7)
+                                    .help("查看更早的壁纸")
+                                    
+                                    Text(appState.wallpaperIndex == 0 ? "今天" : "\(appState.wallpaperIndex) 天前")
+                                        .font(.caption)
+                                        .frame(minWidth: 50)
+                                    
+                                    Button {
+                                        if appState.wallpaperIndex > 0 {
+                                            appState.fetchDailyWallpaper(index: appState.wallpaperIndex - 1)
+                                        }
+                                    } label: {
+                                        Image(systemName: "chevron.right")
+                                    }
+                                    .disabled(appState.wallpaperIndex <= 0)
+                                    .help("查看更新的壁纸")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                
+                                Spacer()
+                                
+                                Button("重置今日") {
+                                    appState.fetchDailyWallpaper(index: 0)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+                
+                if appState.useBingWallpaper, let url = appState.wallpaperURL {
+                    Section("当前预览") {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 120)
+                                .cornerRadius(8)
+                        } placeholder: {
+                            ProgressView()
+                                .frame(height: 120)
+                        }
+                        
+                        Text("提供商: Bing 每日精选图片")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                
+                Section("视觉风格") {
+                    Text("您可以根据个人喜好开启或关闭超薄材质 (ultraThinMaterial) 叠加层。开启后会增加磨砂玻璃感，提高文字可读性；关闭后壁纸会更加清晰。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem {
+                Label("外观", systemImage: "paintbrush")
+            }
+            
             // Auto Rules
             RuleConfigurationView()
                 .tabItem {
@@ -300,7 +398,9 @@ struct SettingsView: View {
     }
 }
 
+/*
 #Preview {
     SettingsView()
         .environmentObject(AppState())
 }
+*/

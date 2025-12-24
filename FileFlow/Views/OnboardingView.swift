@@ -292,6 +292,8 @@ struct DirectoryPreviewRow: View {
     }
 }
 
+/*
 #Preview {
     OnboardingView(onComplete: {})
 }
+*/
