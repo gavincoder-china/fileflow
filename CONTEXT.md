@@ -58,7 +58,13 @@ FileFlow/
 
 | 文件 | 职责 |
 |------|------|
-| `AIService` | 多 Provider 抽象 (OpenAI/Ollama)、文件内容分析、标签建议 |
+| `AIService` | AI 服务抽象层 (OpenAI/Ollama)，负责多模态分析与翻译 |
+| `LifecycleService` | PARA 生命周期管理，负责状态流转检测与自动归档建议 |
+| `KnowledgeLinkService` | 双向链接系统，管理知识引用与反向搜索 |
+| `SemanticSearchService` | 语义搜索服务，基于 NLEmbedding 生成向量索引 |
+| `IncrementalIndexService` | 增量索引服务，仅处理变更文件以提升性能 |
+| `SpotlightIndexService` | CoreSpotlight 集成，支持系统级搜索 |
+| `TimeCapsuleService` | 时间胶囊服务，管理未来触发的文件解锁 |
 
 ### ViewModels
 
@@ -71,6 +77,8 @@ FileFlow/
 | 文件 | 职责 |
 |------|------|
 | `ContentView` | 主框架: 侧边栏 + 详情区 + 文件拖放 |
+| `UnifiedHomeView` | **自适应仪表盘**，集成搜索、健康分、统计 |
+| `ActivityCalendarView` | 类似 GitHub 的文件活动热力图 |
 | `FileStackOrganizerView` | **多文件拖入后的卡片堆叠整理界面**，支持并行 AI 分析 |
 | `TagGraphView` | 基于 Canvas 的标签-文件关系力导向图 |
 
