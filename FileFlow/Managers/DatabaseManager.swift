@@ -73,11 +73,41 @@ actor DatabaseManager {
             
             if sqlite3_open(dbPath, &db) == SQLITE_OK {
                 currentDbPath = dbPath
+                enableWALMode()
                 createTables()
             } else {
                 Logger.error("Failed to open database at \(dbPath)")
             }
         }
+    }
+    
+    // MARK: - Enable WAL Mode
+    
+    /// 启用 WAL 模式和性能优化
+    /// WAL (Write-Ahead Logging) 提供更好的并发性和性能
+    private func enableWALMode() {
+        // WAL mode for better concurrency
+        executeSQL("PRAGMA journal_mode = WAL;")
+        
+        // Synchronous NORMAL for better performance (still safe with WAL)
+        executeSQL("PRAGMA synchronous = NORMAL;")
+        
+        // Page size optimization
+        executeSQL("PRAGMA page_size = 4096;")
+        
+        // Cache size (negative = KB, ~8MB)
+        executeSQL("PRAGMA cache_size = -8000;")
+        
+        // Memory-mapped I/O for faster reads (256MB)
+        executeSQL("PRAGMA mmap_size = 268435456;")
+        
+        // Enable foreign keys
+        executeSQL("PRAGMA foreign_keys = ON;")
+        
+        // Temp store in memory
+        executeSQL("PRAGMA temp_store = MEMORY;")
+        
+        Logger.success("SQLite WAL mode enabled with performance pragmas")
     }
     
     /// 当根目录变更时调用
@@ -143,6 +173,74 @@ actor DatabaseManager {
             Logger.database("Migrating: Adding parent_subcategory_id column to subcategories")
             executeSQL("ALTER TABLE subcategories ADD COLUMN parent_subcategory_id TEXT;")
         }
+        
+        // Migrate lifecycle columns
+        checkAndMigrateLifecycle()
+    }
+    
+    // MARK: - Lifecycle Migration
+    private func checkAndMigrateLifecycle() {
+        let sql = "PRAGMA table_info(files);"
+        var stmt: OpaquePointer?
+        var hasLifecycleStage = false
+        var hasLastAccessedAt = false
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let name = sqlite3_column_text(stmt, 1) {
+                    let columnName = String(cString: name)
+                    if columnName == "lifecycle_stage" {
+                        hasLifecycleStage = true
+                    }
+                    if columnName == "last_accessed_at" {
+                        hasLastAccessedAt = true
+                    }
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        if !hasLifecycleStage {
+            Logger.database("Migrating: Adding lifecycle_stage column to files")
+            executeSQL("ALTER TABLE files ADD COLUMN lifecycle_stage TEXT DEFAULT 'active';")
+        }
+        
+        if !hasLastAccessedAt {
+            Logger.database("Migrating: Adding last_accessed_at column to files")
+            executeSQL("ALTER TABLE files ADD COLUMN last_accessed_at TEXT;")
+            // Set initial value to imported_at for existing files
+            executeSQL("UPDATE files SET last_accessed_at = imported_at WHERE last_accessed_at IS NULL;")
+        }
+        
+        // Create file_transitions table if not exists
+        createTransitionsTable()
+    }
+    
+    private func createTransitionsTable() {
+        let createTransitionsTable = """
+        CREATE TABLE IF NOT EXISTS file_transitions (
+            id TEXT PRIMARY KEY,
+            file_id TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            from_category TEXT NOT NULL,
+            to_category TEXT NOT NULL,
+            from_subcategory TEXT,
+            to_subcategory TEXT,
+            reason TEXT NOT NULL,
+            notes TEXT,
+            triggered_at TEXT NOT NULL,
+            is_automatic INTEGER NOT NULL DEFAULT 0,
+            confirmed_by_user INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (file_id) REFERENCES files(id)
+        );
+        """
+        executeSQL(createTransitionsTable)
+        
+        // Create indexes for transitions
+        executeSQL("CREATE INDEX IF NOT EXISTS idx_transitions_file ON file_transitions(file_id);")
+        executeSQL("CREATE INDEX IF NOT EXISTS idx_transitions_date ON file_transitions(triggered_at);")
+        
+        Logger.database("File transitions table ready")
     }
 
 
@@ -262,6 +360,12 @@ actor DatabaseManager {
         executeSQL("CREATE INDEX IF NOT EXISTS idx_files_imported_at ON files(imported_at);")
         executeSQL("CREATE INDEX IF NOT EXISTS idx_files_relative_path ON files(relative_path);")
         executeSQL("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);")
+        
+        // Lifecycle performance indexes
+        executeSQL("CREATE INDEX IF NOT EXISTS idx_files_lifecycle ON files(lifecycle_stage);")
+        executeSQL("CREATE INDEX IF NOT EXISTS idx_files_last_accessed ON files(last_accessed_at);")
+        executeSQL("CREATE INDEX IF NOT EXISTS idx_files_category_lifecycle ON files(category, lifecycle_stage);")
+        executeSQL("CREATE INDEX IF NOT EXISTS idx_files_subcategory ON files(subcategory);")
     }
 
     
@@ -643,8 +747,8 @@ actor DatabaseManager {
         
         let sql = """
         INSERT OR REPLACE INTO files 
-        (id, original_name, new_name, original_path, current_path, relative_path, category, subcategory, summary, notes, file_size, file_type, created_at, imported_at, modified_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (id, original_name, new_name, original_path, current_path, relative_path, category, subcategory, summary, notes, file_size, file_type, created_at, imported_at, modified_at, lifecycle_stage, last_accessed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         
         var stmt: OpaquePointer?
@@ -693,6 +797,12 @@ actor DatabaseManager {
             sqlite3_bind_text(stmt, 14, importedAtString, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 15, modifiedAtString, -1, SQLITE_TRANSIENT)
             
+            // Lifecycle fields
+            let lifecycleStageString = file.lifecycleStage.rawValue
+            let lastAccessedAtString = formatter.string(from: file.lastAccessedAt)
+            sqlite3_bind_text(stmt, 16, lifecycleStageString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 17, lastAccessedAtString, -1, SQLITE_TRANSIENT)
+            
             let result = sqlite3_step(stmt)
             if result != SQLITE_DONE {
                 Logger.error("File save failed: \(result)")
@@ -709,6 +819,11 @@ actor DatabaseManager {
             await saveFileTagRelation(fileId: file.id, tagId: tag.id)
             await incrementTagUsage(tag.id)
         }
+        
+        // Index to Spotlight for system-wide search
+        var fileWithTags = file
+        fileWithTags.tags = tags
+        await SpotlightIndexService.shared.indexFile(fileWithTags)
     }
 
     
@@ -721,6 +836,119 @@ actor DatabaseManager {
             return String(absolutePath.dropFirst(rootPath.count + 1)) // +1 for the trailing /
         }
         return absolutePath
+    }
+    
+    /// 根据路径获取文件
+    func getFile(byPath path: String) async -> ManagedFile? {
+        openDatabase()
+        
+        let sql = "SELECT * FROM files WHERE new_path = ? LIMIT 1;"
+        var stmt: OpaquePointer?
+        var file: ManagedFile?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
+            
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                if var parsedFile = parseFile(from: stmt) {
+                    let fileId = parsedFile.id
+                    parsedFile.tags = await getTagsForFile(fileId: fileId)
+                    file = parsedFile
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return file
+    }
+    
+    /// 根据 ID 获取文件
+    func getFile(byId id: UUID) async -> ManagedFile? {
+        openDatabase()
+        
+        let sql = "SELECT * FROM files WHERE id = ? LIMIT 1;"
+        var stmt: OpaquePointer?
+        var file: ManagedFile?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, id.uuidString, -1, SQLITE_TRANSIENT)
+            
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                if var parsedFile = parseFile(from: stmt) {
+                    let fileId = parsedFile.id
+                    parsedFile.tags = await getTagsForFile(fileId: fileId)
+                    file = parsedFile
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return file
+    }
+    
+    /// 更新文件信息
+    func updateFile(_ file: ManagedFile) async {
+        openDatabase()
+        
+        let sql = """
+        UPDATE files SET
+            new_name = ?,
+            new_path = ?,
+            category = ?,
+            subcategory = ?,
+            summary = ?,
+            notes = ?,
+            modified_at = ?,
+            lifecycle_stage = ?,
+            last_accessed_at = ?,
+            content_hash = ?
+        WHERE id = ?;
+        """
+        
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let dateFormatter = ISO8601DateFormatter()
+            
+            sqlite3_bind_text(stmt, 1, file.newName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, file.newPath, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, file.category.rawValue, -1, SQLITE_TRANSIENT)
+            
+            if let subcategory = file.subcategory {
+                sqlite3_bind_text(stmt, 4, subcategory, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 4)
+            }
+            
+            if let summary = file.summary {
+                sqlite3_bind_text(stmt, 5, summary, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 5)
+            }
+            
+            if let notes = file.notes {
+                sqlite3_bind_text(stmt, 6, notes, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 6)
+            }
+            
+            sqlite3_bind_text(stmt, 7, dateFormatter.string(from: file.modifiedAt), -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 8, file.lifecycleStage.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 9, dateFormatter.string(from: file.lastAccessedAt), -1, SQLITE_TRANSIENT)
+            
+            if let hash = file.contentHash {
+                sqlite3_bind_text(stmt, 10, hash, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 10)
+            }
+            
+            sqlite3_bind_text(stmt, 11, file.id.uuidString, -1, SQLITE_TRANSIENT)
+            
+            if sqlite3_step(stmt) != SQLITE_DONE {
+                Logger.error("Failed to update file: \(file.id)")
+            }
+        }
+        sqlite3_finalize(stmt)
     }
     
     func saveFileTagRelation(fileId: UUID, tagId: UUID) async {
@@ -760,6 +988,27 @@ actor DatabaseManager {
         executeSQL("DELETE FROM file_embeddings WHERE file_id = '\(id)';")
     }
 
+    /// Get all files from the database
+    func getAllFiles() async -> [ManagedFile] {
+        openDatabase()
+        
+        let sql = "SELECT * FROM files ORDER BY imported_at DESC;"
+        var files: [ManagedFile] = []
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if var file = parseFile(from: stmt) {
+                    let fileId = file.id
+                    file.tags = await self.getTagsForFile(fileId: fileId)
+                    files.append(file)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return files
+    }
     
     func getRecentFiles(limit: Int) async -> [ManagedFile] {
         openDatabase()
@@ -815,6 +1064,51 @@ actor DatabaseManager {
         return files
     }
     
+    /// Get files for category with pagination (lazy loading)
+    /// - Parameters:
+    ///   - category: PARA category
+    ///   - limit: Number of files to fetch
+    ///   - offset: Starting offset for pagination
+    /// - Returns: Paginated files and hasMore flag
+    func getFilesForCategoryPaginated(_ category: PARACategory, limit: Int = 50, offset: Int = 0) async -> (files: [ManagedFile], hasMore: Bool) {
+        openDatabase()
+        
+        // Fetch one extra to check if there are more
+        let sql = """
+        SELECT * FROM files
+        WHERE category = ?
+        ORDER BY imported_at DESC
+        LIMIT ? OFFSET ?;
+        """
+        
+        var files: [ManagedFile] = []
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let categoryString = category.rawValue
+            sqlite3_bind_text(stmt, 1, categoryString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(stmt, 2, Int32(limit + 1)) // Fetch one extra
+            sqlite3_bind_int(stmt, 3, Int32(offset))
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if var file = parseFile(from: stmt) {
+                    let fileId = file.id
+                    file.tags = await self.getTagsForFile(fileId: fileId)
+                    files.append(file)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        // Check if there are more
+        let hasMore = files.count > limit
+        if hasMore {
+            files.removeLast()
+        }
+        
+        return (files, hasMore)
+    }
+    
     /// Get files for category and specific subcategory (for efficient propagation lookup)
     func getFiles(category: PARACategory, subcategory: String?) async -> [ManagedFile] {
         openDatabase()
@@ -844,29 +1138,6 @@ actor DatabaseManager {
         }
         sqlite3_finalize(stmt)
         return files
-    }
-    
-    func getFile(byPath path: String) async -> ManagedFile? {
-        openDatabase()
-        
-        let sql = "SELECT * FROM files WHERE current_path = ? OR original_path = ? LIMIT 1;"
-        var stmt: OpaquePointer?
-        var file: ManagedFile?
-        
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 2, path, -1, SQLITE_TRANSIENT)
-            
-            if sqlite3_step(stmt) == SQLITE_ROW {
-                file = parseFile(from: stmt)
-                if var f = file {
-                    f.tags = await getTagsForFile(fileId: f.id)
-                    file = f
-                }
-            }
-        }
-        sqlite3_finalize(stmt)
-        return file
     }
     
     /// Get all file-tag pairs for graph generation
@@ -922,6 +1193,68 @@ actor DatabaseManager {
         return files
     }
     
+    /// Add a tag to a file
+    func addTagToFile(tagId: UUID, fileId: UUID) async {
+        openDatabase()
+        
+        let sql = "INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?);"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, fileId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, tagId.uuidString, -1, SQLITE_TRANSIENT)
+            
+            if sqlite3_step(stmt) == SQLITE_DONE {
+                // Update tag usage count
+                await incrementTagUsage(tagId: tagId)
+            }
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Remove a tag from a file
+    func removeTagFromFile(tagId: UUID, fileId: UUID) async {
+        openDatabase()
+        
+        let sql = "DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?;"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, fileId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, tagId.uuidString, -1, SQLITE_TRANSIENT)
+            
+            if sqlite3_step(stmt) == SQLITE_DONE {
+                // Decrement tag usage count
+                await decrementTagUsage(tagId: tagId)
+            }
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Increment tag usage count
+    private func incrementTagUsage(tagId: UUID) async {
+        let sql = "UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?;"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, tagId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Decrement tag usage count
+    private func decrementTagUsage(tagId: UUID) async {
+        let sql = "UPDATE tags SET usage_count = MAX(0, usage_count - 1) WHERE id = ?;"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, tagId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+    }
+    
     func searchFiles(query: String, category: PARACategory? = nil, tags: [Tag] = []) async -> [ManagedFile] {
         openDatabase()
         
@@ -955,6 +1288,84 @@ actor DatabaseManager {
             }
         }
         sqlite3_finalize(stmt)
+        
+        return files
+    }
+    
+    /// 使用自然语言解析结果进行结构化搜索
+    func searchFilesWithFilters(parsed: ParsedQuery) async -> [ManagedFile] {
+        openDatabase()
+        
+        var conditions: [String] = []
+        var params: [String] = []
+        
+        // 时间范围
+        if let start = parsed.dateRange.start {
+            conditions.append("imported_at >= ?")
+            params.append(ISO8601DateFormatter().string(from: start))
+        }
+        if let end = parsed.dateRange.end {
+            conditions.append("imported_at <= ?")
+            params.append(ISO8601DateFormatter().string(from: end))
+        }
+        
+        // 文件类型
+        if !parsed.fileTypes.isEmpty {
+            let placeholders = parsed.fileTypes.map { _ in "?" }.joined(separator: ", ")
+            conditions.append("LOWER(file_type) IN (\(placeholders))")
+            params.append(contentsOf: parsed.fileTypes)
+        }
+        
+        // 分类
+        if !parsed.categories.isEmpty {
+            let placeholders = parsed.categories.map { _ in "?" }.joined(separator: ", ")
+            conditions.append("category IN (\(placeholders))")
+            params.append(contentsOf: parsed.categories.map { $0.rawValue })
+        }
+        
+        // 关键词
+        for keyword in parsed.keywords {
+            conditions.append("(new_name LIKE ? OR original_name LIKE ? OR summary LIKE ?)")
+            let pattern = "%\(keyword)%"
+            params.append(contentsOf: [pattern, pattern, pattern])
+        }
+        
+        let whereClause = conditions.isEmpty ? "1=1" : conditions.joined(separator: " AND ")
+        let sql = """
+        SELECT * FROM files WHERE \(whereClause) ORDER BY imported_at DESC LIMIT 100;
+        """
+        
+        var files: [ManagedFile] = []
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            for (index, param) in params.enumerated() {
+                sqlite3_bind_text(stmt, Int32(index + 1), param, -1, SQLITE_TRANSIENT)
+            }
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let file = parseFile(from: stmt) {
+                    files.append(file)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        // 如果有标签过滤，再做一次筛选
+        if !parsed.tags.isEmpty {
+            var filteredFiles: [ManagedFile] = []
+            for var file in files {
+                let fileTags = await getTagsForFile(fileId: file.id)
+                let fileTagNames = Set(fileTags.map { $0.name.lowercased() })
+                let queryTags = Set(parsed.tags.map { $0.lowercased() })
+                
+                if !queryTags.isDisjoint(with: fileTagNames) {
+                    file.tags = fileTags
+                    filteredFiles.append(file)
+                }
+            }
+            return filteredFiles
+        }
         
         return files
     }
@@ -996,12 +1407,26 @@ actor DatabaseManager {
         }
         
         let formatter = ISO8601DateFormatter()
+        let category = PARACategory(rawValue: String(cString: categoryStr)) ?? .resources
+        
+        // Parse lifecycle fields (columns 15, 16 after migration)
+        var lifecycleStage: FileLifecycleStage = .active
+        var lastAccessedAt: Date = Date()
+        
+        if let lifecycleStr = sqlite3_column_text(stmt, 15) {
+            lifecycleStage = FileLifecycleStage(rawValue: String(cString: lifecycleStr)) ?? .active
+        }
+        if let lastAccessedStr = sqlite3_column_text(stmt, 16) {
+            lastAccessedAt = formatter.date(from: String(cString: lastAccessedStr)) ?? Date()
+        }
         
         var file = ManagedFile(
             id: UUID(uuidString: String(cString: idStr)) ?? UUID(),
             originalName: String(cString: originalNameStr),
             originalPath: String(cString: originalPathStr),
-            category: PARACategory(rawValue: String(cString: categoryStr)) ?? .resources
+            category: category,
+            lifecycleStage: lifecycleStage,
+            lastAccessedAt: lastAccessedAt
         )
         
         file.newName = String(cString: newNameStr)
@@ -1520,5 +1945,289 @@ actor DatabaseManager {
         executeSQL("DELETE FROM rules WHERE id = '\(id)';")
         executeSQL("DELETE FROM rule_conditions WHERE rule_id = '\(id)';")
         executeSQL("DELETE FROM rule_actions WHERE rule_id = '\(id)';")
+    }
+    
+    // MARK: - File Lifecycle Operations
+    
+    /// Save a file transition record
+    func saveTransition(_ transition: FileTransition) async {
+        openDatabase()
+        
+        let sql = """
+        INSERT INTO file_transitions 
+        (id, file_id, file_name, from_category, to_category, from_subcategory, to_subcategory, reason, notes, triggered_at, is_automatic, confirmed_by_user)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let formatter = ISO8601DateFormatter()
+            
+            sqlite3_bind_text(stmt, 1, transition.id.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, transition.fileId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, transition.fileName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 4, transition.fromCategory.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 5, transition.toCategory.rawValue, -1, SQLITE_TRANSIENT)
+            
+            if let fromSub = transition.fromSubcategory {
+                sqlite3_bind_text(stmt, 6, fromSub, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 6)
+            }
+            
+            if let toSub = transition.toSubcategory {
+                sqlite3_bind_text(stmt, 7, toSub, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 7)
+            }
+            
+            sqlite3_bind_text(stmt, 8, transition.reason.rawValue, -1, SQLITE_TRANSIENT)
+            
+            if let notes = transition.notes {
+                sqlite3_bind_text(stmt, 9, notes, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 9)
+            }
+            
+            sqlite3_bind_text(stmt, 10, formatter.string(from: transition.triggeredAt), -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(stmt, 11, transition.isAutomatic ? 1 : 0)
+            sqlite3_bind_int(stmt, 12, transition.confirmedByUser ? 1 : 0)
+            
+            let result = sqlite3_step(stmt)
+            if result == SQLITE_DONE {
+                Logger.database("Saved transition: \(transition.fileName) \(transition.fromCategory.rawValue) → \(transition.toCategory.rawValue)")
+            } else {
+                Logger.error("Failed to save transition: \(result)")
+            }
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Get all transitions for a specific file
+    func getTransitions(forFileId fileId: UUID) async -> [FileTransition] {
+        openDatabase()
+        
+        let sql = """
+        SELECT * FROM file_transitions 
+        WHERE file_id = ? 
+        ORDER BY triggered_at DESC;
+        """
+        
+        var transitions: [FileTransition] = []
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, fileId.uuidString, -1, SQLITE_TRANSIENT)
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let transition = parseTransition(from: stmt) {
+                    transitions.append(transition)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return transitions
+    }
+    
+    /// Get recent transitions across all files
+    func getRecentTransitions(limit: Int = 50) async -> [FileTransition] {
+        openDatabase()
+        
+        let sql = """
+        SELECT * FROM file_transitions 
+        ORDER BY triggered_at DESC 
+        LIMIT ?;
+        """
+        
+        var transitions: [FileTransition] = []
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_int(stmt, 1, Int32(limit))
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let transition = parseTransition(from: stmt) {
+                    transitions.append(transition)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return transitions
+    }
+    
+    private func parseTransition(from stmt: OpaquePointer?) -> FileTransition? {
+        guard let stmt = stmt,
+              let idStr = sqlite3_column_text(stmt, 0),
+              let fileIdStr = sqlite3_column_text(stmt, 1),
+              let fileNameStr = sqlite3_column_text(stmt, 2),
+              let fromCatStr = sqlite3_column_text(stmt, 3),
+              let toCatStr = sqlite3_column_text(stmt, 4),
+              let reasonStr = sqlite3_column_text(stmt, 7) else {
+            return nil
+        }
+        
+        let fromSubcategory: String? = sqlite3_column_text(stmt, 5).map { String(cString: $0) }
+        let toSubcategory: String? = sqlite3_column_text(stmt, 6).map { String(cString: $0) }
+        let notes: String? = sqlite3_column_text(stmt, 8).map { String(cString: $0) }
+        
+        return FileTransition(
+            id: UUID(uuidString: String(cString: idStr)) ?? UUID(),
+            fileId: UUID(uuidString: String(cString: fileIdStr)) ?? UUID(),
+            fileName: String(cString: fileNameStr),
+            from: PARACategory(rawValue: String(cString: fromCatStr)) ?? .resources,
+            to: PARACategory(rawValue: String(cString: toCatStr)) ?? .archives,
+            fromSub: fromSubcategory,
+            toSub: toSubcategory,
+            reason: TransitionReason(rawValue: String(cString: reasonStr)) ?? .userManual,
+            notes: notes,
+            isAutomatic: sqlite3_column_int(stmt, 10) != 0,
+            confirmedByUser: sqlite3_column_int(stmt, 11) != 0
+        )
+    }
+    
+    /// Update file lifecycle stage
+    func updateLifecycleStage(fileId: UUID, stage: FileLifecycleStage) async {
+        openDatabase()
+        
+        let sql = "UPDATE files SET lifecycle_stage = ? WHERE id = ?;"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, stage.rawValue, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, fileId.uuidString, -1, SQLITE_TRANSIENT)
+            
+            let result = sqlite3_step(stmt)
+            if result == SQLITE_DONE {
+                Logger.database("Updated lifecycle stage for file to: \(stage.rawValue)")
+            }
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Update file last accessed time (call when file is opened/viewed)
+    func updateLastAccessedAt(fileId: UUID) async {
+        openDatabase()
+        
+        let sql = "UPDATE files SET last_accessed_at = ?, lifecycle_stage = 'active' WHERE id = ?;"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            let formatter = ISO8601DateFormatter()
+            sqlite3_bind_text(stmt, 1, formatter.string(from: Date()), -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, fileId.uuidString, -1, SQLITE_TRANSIENT)
+            
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Get files by lifecycle stage
+    func getFiles(byLifecycleStage stage: FileLifecycleStage) async -> [ManagedFile] {
+        openDatabase()
+        
+        let sql = "SELECT * FROM files WHERE lifecycle_stage = ? ORDER BY last_accessed_at ASC;"
+        var files: [ManagedFile] = []
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, stage.rawValue, -1, SQLITE_TRANSIENT)
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if var file = parseFile(from: stmt) {
+                    let fileId = file.id
+                    file.tags = await self.getTagsForFile(fileId: fileId)
+                    files.append(file)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return files
+    }
+    
+    /// Get files that haven't been accessed in specified days
+    func getInactiveFiles(daysThreshold: Int) async -> [ManagedFile] {
+        openDatabase()
+        
+        let sql = """
+        SELECT * FROM files 
+        WHERE category != 'Archives' 
+        AND (
+            last_accessed_at IS NULL 
+            OR julianday('now') - julianday(last_accessed_at) > ?
+        )
+        ORDER BY last_accessed_at ASC;
+        """
+        
+        var files: [ManagedFile] = []
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_int(stmt, 1, Int32(daysThreshold))
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if var file = parseFile(from: stmt) {
+                    let fileId = file.id
+                    file.tags = await self.getTagsForFile(fileId: fileId)
+                    files.append(file)
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return files
+    }
+    
+    /// Refresh lifecycle stages for all files based on last access time
+    func refreshAllLifecycleStages() async {
+        openDatabase()
+        
+        // Update to dormant (30-90 days)
+        executeSQL("""
+            UPDATE files SET lifecycle_stage = 'dormant' 
+            WHERE category != 'Archives' 
+            AND lifecycle_stage = 'active'
+            AND julianday('now') - julianday(last_accessed_at) BETWEEN 30 AND 90;
+        """)
+        
+        // Update to stale (90+ days)
+        executeSQL("""
+            UPDATE files SET lifecycle_stage = 'stale' 
+            WHERE category != 'Archives' 
+            AND lifecycle_stage IN ('active', 'dormant')
+            AND julianday('now') - julianday(last_accessed_at) > 90;
+        """)
+        
+        // Ensure archived category files have archived stage
+        executeSQL("""
+            UPDATE files SET lifecycle_stage = 'archived' 
+            WHERE category = 'Archives' AND lifecycle_stage != 'archived';
+        """)
+        
+        Logger.database("Refreshed lifecycle stages for all files")
+    }
+    
+    /// Get lifecycle statistics
+    func getLifecycleStats() async -> [FileLifecycleStage: Int] {
+        openDatabase()
+        
+        let sql = "SELECT lifecycle_stage, COUNT(*) FROM files GROUP BY lifecycle_stage;"
+        var stats: [FileLifecycleStage: Int] = [:]
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let stageStr = sqlite3_column_text(stmt, 0) {
+                    let stage = FileLifecycleStage(rawValue: String(cString: stageStr)) ?? .active
+                    let count = Int(sqlite3_column_int(stmt, 1))
+                    stats[stage] = count
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return stats
     }
 }

@@ -46,6 +46,9 @@ struct CategoryView: View {
     @State private var moveTargetCategory: PARACategory = .resources
     @State private var moveTargetSubcategory: String = ""
     
+    // Reader State - using item binding for reliability
+    @State private var fileForReader: ManagedFile?
+    
     private let fileManager = FileFlowManager.shared
     private let database = DatabaseManager.shared
     
@@ -84,8 +87,7 @@ struct CategoryView: View {
             
             // MARK: - Middle Pane: File Content
             VStack(spacing: 0) {
-                CategoryHeaderView(category: category)
-                breadcrumbNavigationView
+                CategoryHeaderView(category: category, subcategory: selectedSubcategory, browsingPath: browsingPath)
                 sortingToolbarView
                 fileListWithFoldersView
             }
@@ -107,6 +109,9 @@ struct CategoryView: View {
                             await FileFlowManager.shared.updateFileTags(for: file, tags: tags)
                             await loadData()
                         }
+                    },
+                    onOpenReader: {
+                        fileForReader = file
                     }
                 )
                 .transition(.move(edge: .trailing))
@@ -137,71 +142,101 @@ struct CategoryView: View {
                 await loadData()
             }
         }
-        // Apply Overlay for Alerts logic
+        .onChange(of: appState.navigationTarget) { _, target in
+            guard let target = target, target.category == category else { return }
+            
+            Task {
+                // 1. Set Subcategory
+                // If subcategory is explicitly provided, use it.
+                // Otherwise, try to infer from file if present.
+                var newSub = target.subcategory
+                if newSub == nil, let file = target.file {
+                     newSub = file.subcategory
+                }
+                
+                selectedSubcategory = newSub
+                
+                // 2. Set Browsing Path
+                // If we have a file, we need to calculate the path relative to Category/Subcategory
+                if let file = target.file {
+                    // Try to deduce folders from file path
+                    // Path: /Root/Category/Subcategory/FolderA/FolderB/File.ext
+                    // We want browsingPath = ["FolderA", "FolderB"]
+                    
+                    let rootURL = fileManager.getCategoryURL(for: category)
+                    var baseURL = rootURL
+                    if let sub = newSub {
+                        baseURL = baseURL.appendingPathComponent(sub)
+                    }
+                    
+                    let filePath = file.newPath
+                    if filePath.hasPrefix(baseURL.path) {
+                        let relativePath = String(filePath.dropFirst(baseURL.path.count))
+                        // Remove leading slash if present
+                        let cleanRelative = relativePath.hasPrefix("/") ? String(relativePath.dropFirst()) : relativePath
+                        
+                        let components = cleanRelative.components(separatedBy: "/")
+                        // Drop the last component (filename)
+                        if components.count > 1 {
+                             browsingPath = Array(components.dropLast())
+                        } else {
+                             browsingPath = []
+                        }
+                    } else {
+                        // Fallback: file might be in different location or flat structure
+                        browsingPath = []
+                    }
+                    
+                    // 3. Highlight/Select file
+                    await loadData() // Reload to fetch files at new path
+                    
+                    // Wait for reload then select
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    selectedFile = file
+                    // Scroll to file? (Requires ScrollViewProxy, maybe later)
+                } else {
+                    // Just navigating to folder root
+                    browsingPath = []
+                    await loadData()
+                }
+                
+                // Clear the target after handling so it doesn't re-trigger
+                // But we actally want it to persist until next action? 
+                // No, we should probably clear it in AppState or just let it be.
+                // If we set it to nil, it triggers onChange again (nil), which guards out.
+                // MainActor.run { appState.navigationTarget = nil } 
+                // Actually safer to leave it or clear it. If we clear it, ContentView updates?
+                // ContentView only reacts to .category, doesn't unset.
+            }
+        }
         .background {
            fileOperationsOverlay(content: Color.clear)
         }
-    }
-    
-    // MARK: - Extracted Views
-    
-    @ViewBuilder
-    private var breadcrumbNavigationView: some View {
-        if !browsingPath.isEmpty || selectedSubcategory != nil {
-            HStack(spacing: 4) {
-                Button {
-                    browsingPath = []
-                    selectedSubcategory = nil
-                    Task { await loadData() }
-                } label: {
-                    Text(category.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                }
-                .buttonStyle(.plain)
-                
-                if let sub = selectedSubcategory {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    
-                    Button {
-                        browsingPath = []
-                        Task { await loadData() }
-                    } label: {
-                        Text(sub)
-                            .font(.caption)
-                            .foregroundStyle(browsingPath.isEmpty ? Color.primary : Color.blue)
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                ForEach(Array(browsingPath.enumerated()), id: \.offset) { index, folder in
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    
-                    Button {
-                        browsingPath = Array(browsingPath.prefix(index + 1))
-                        Task { await loadData() }
-                    } label: {
-                        Text(folder)
-                            .font(.caption)
-                            .foregroundStyle(index == browsingPath.count - 1 ? Color.primary : Color.blue)
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 8)
-            .background(Color.primary.opacity(0.03))
+        .sheet(item: $fileForReader) { file in
+            UniversalReaderView(file: file)
+                .frame(minWidth: 900, minHeight: 700)
         }
     }
     
+
+    
+    // View Mode State
+    @State private var viewMode: FileViewMode = .list
+
     private var sortingToolbarView: some View {
         HStack(spacing: 12) {
+            // View Mode Toggle
+            Picker("View Mode", selection: $viewMode) {
+                ForEach(FileViewMode.allCases, id: \.self) { mode in
+                    Image(systemName: mode.iconName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 80)
+            .labelsHidden()
+            
+            Divider().frame(height: 16)
+            
             ForEach(FileSortOption.allCases, id: \.self) { option in
                 Button {
                     if sortOption == option {
@@ -222,7 +257,7 @@ struct CategoryView: View {
                     .font(.caption)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(sortOption == option ? Color.blue.opacity(0.2) : Color.clear)
+                    .background(sortOption == option ? Color.blue.opacity(0.1) : Color.clear)
                     .foregroundStyle(sortOption == option ? .blue : .secondary)
                     .cornerRadius(8)
                 }
@@ -231,69 +266,207 @@ struct CategoryView: View {
             
             Spacer()
             
+            // Breadcrumbs (Right aligned)
+            if !browsingPath.isEmpty || selectedSubcategory != nil {
+                HStack(spacing: 2) {
+                    // Home / Category Root
+                    Button {
+                        browsingPath = []
+                        selectedSubcategory = nil
+                        Task { await loadData() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(category.color)
+                            Text(category.displayName)
+                                .font(.system(size: 13))
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Subcategory
+                    if let sub = selectedSubcategory {
+                        Text(">")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                        
+                        Button {
+                            browsingPath = []
+                            Task { await loadData() }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.cyan)
+                                Text(sub)
+                                    .font(.system(size: 13))
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // Nested folder path
+                    ForEach(Array(browsingPath.enumerated()), id: \.offset) { index, folder in
+                        Text(">")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                        
+                        Button {
+                            browsingPath = Array(browsingPath.prefix(index + 1))
+                            Task { await loadData() }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.cyan)
+                                Text(folder)
+                                    .font(.system(size: 13))
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.trailing, 12)
+            }
+            
             Text("\(childFolders.count) 个文件夹, \(filteredFiles.count) 个文件")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 24)
-        .padding(.bottom, 8)
+        .padding(.vertical, 8)
+        .background {
+            if appState.useBingWallpaper {
+                Rectangle().fill(.ultraThinMaterial)
+            } else {
+                Rectangle().fill(Color(nsColor: .controlBackgroundColor))
+            }
+        }
     }
     
     private var fileListWithFoldersView: some View {
         ScrollView {
-            LazyVStack(spacing: 8) {
-                // Debug: Show if no folders found
-                if childFolders.isEmpty && !isLoading {
-                    Text("当前目录无子文件夹")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 4)
+            if viewMode == .list {
+                LazyVStack(spacing: 8) {
+                    folderListContent
+                    fileListContent
                 }
-                
-                ForEach(childFolders, id: \.self) { folderName in
-                    FolderNavigationRow(name: folderName)
-                        .gesture(
-                            TapGesture(count: 2)
-                                .onEnded {
-                                    browsingPath.append(folderName)
-                                    Task { await loadData() }
-                                }
-                        )
-                        .gesture(
-                            TapGesture(count: 1)
-                                .onEnded {
-                                    // Single tap: just visual feedback
-                                    Logger.debug("Folder tapped: \(folderName)")
-                                }
-                        )
+                .padding(24)
+                .padding(.bottom, 60)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 140), spacing: 16)], spacing: 16) {
+                    folderGridContent
+                    fileGridContent
                 }
-                
-                // When browsing into nested folders, show filesystem files
-                if !browsingPath.isEmpty {
-                    ForEach(filesAtPath, id: \.absoluteString) { fileURL in
-                        FilesystemFileRow(url: fileURL)
-                            .onTapGesture {
-                                // Could open file with default app
-                                NSWorkspace.shared.open(fileURL)
-                            }
-                    }
-                } else {
-                    // At root or subcategory level, show database files
-                    ForEach(filteredFiles) { file in
-                        FileListRow(file: file, isSelected: selectedFile?.id == file.id)
-                            .onTapGesture {
-                                selectedFile = file
-                            }
-                            .contextMenu {
-                                fileContextMenu(for: file)
-                            }
-                    }
-                }
+                .padding(24)
+                .padding(.bottom, 60)
             }
-            .padding(24)
-            .padding(.bottom, 60)
         }
+    }
+    
+    // Extracted content for reuse and clarity
+    @ViewBuilder
+    private var folderListContent: some View {
+        // Debug: Show if no folders found
+        if childFolders.isEmpty && !isLoading && viewMode == .list {
+            // Only show empty folder hint in list mode or handled generally? 
+            // Actually let's hide it to be cleaner, or show only if total empty
+        }
+        
+        ForEach(childFolders, id: \.self) { folderName in
+            FolderNavigationRow(name: folderName)
+                .gesture(
+                    TapGesture(count: 2)
+                        .onEnded {
+                            browsingPath.append(folderName)
+                            Task { await loadData() }
+                        }
+                )
+                .gesture(
+                    TapGesture(count: 1).onEnded { } // Eat single taps to prevent other gestures
+                )
+        }
+    }
+    
+    @ViewBuilder
+    private var fileListContent: some View {
+        // When browsing into nested folders, show filesystem files
+        if !browsingPath.isEmpty {
+            ForEach(filesAtPath, id: \.absoluteString) { fileURL in
+                FilesystemFileRow(url: fileURL)
+                    .onTapGesture {
+                        NSWorkspace.shared.open(fileURL)
+                    }
+            }
+        } else {
+            // At root or subcategory level, show database files
+            ForEach(filteredFiles) { file in
+                FileListRow(file: file, isSelected: selectedFile?.id == file.id)
+                    .onTapGesture(count: 2) {
+                        fileForReader = file
+                    }
+                    .onTapGesture {
+                        selectedFile = file
+                    }
+                    .contextMenu {
+                        fileContextMenu(for: file)
+                    }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var folderGridContent: some View {
+        ForEach(childFolders, id: \.self) { folderName in
+            GridFolderItem(name: folderName)
+                .onTapGesture(count: 2) {
+                    browsingPath.append(folderName)
+                    Task { await loadData() }
+                }
+        }
+    }
+    
+    @ViewBuilder
+    private var fileGridContent: some View {
+         if !browsingPath.isEmpty {
+             ForEach(filesAtPath, id: \.absoluteString) { fileURL in
+                 // Need a transient ManagedFile wrapper or a specific GridFilesystemItem?
+                 // For now, let's use a simplified grid item or existing one if we can map it.
+                 // Since GridFileItem takes ManagedFile, we might needs a generic one or separate.
+                 // Let's use a quick view here since FilesystemFileRow is for list.
+                 
+                 VStack {
+                     RichFileIcon(path: fileURL.path)
+                         .frame(width: 64, height: 64)
+                     Text(fileURL.lastPathComponent)
+                         .font(.caption)
+                         .lineLimit(2)
+                 }
+                 .frame(width: 100, height: 120)
+                 .onTapGesture(count: 2) {
+                     NSWorkspace.shared.open(fileURL)
+                 }
+             }
+         } else {
+             ForEach(filteredFiles) { file in
+                 GridFileItem(file: file, isSelected: selectedFile?.id == file.id)
+                     .onTapGesture(count: 2) {
+                         fileForReader = file
+                     }
+                     .onTapGesture {
+                         selectedFile = file
+                     }
+                     .contextMenu {
+                         fileContextMenu(for: file)
+                     }
+             }
+         }
     }
     
     private var filteredFiles: [ManagedFile] {
@@ -627,6 +800,19 @@ struct CategoryView: View {
 // Retain Header
 struct CategoryHeaderView: View {
     let category: PARACategory
+    var subcategory: String? = nil
+    var browsingPath: [String] = []
+    
+    private var currentFolderURL: URL {
+        var url = FileFlowManager.shared.getCategoryURL(for: category)
+        if let sub = subcategory {
+            url = url.appendingPathComponent(sub)
+        }
+        for folder in browsingPath {
+            url = url.appendingPathComponent(folder)
+        }
+        return url
+    }
     
     var body: some View {
         HStack {
@@ -647,7 +833,7 @@ struct CategoryHeaderView: View {
             Spacer()
             
             Button {
-                FileFlowManager.shared.revealInFinder(url: FileFlowManager.shared.getCategoryURL(for: category))
+                FileFlowManager.shared.revealInFinder(url: currentFolderURL)
             } label: {
                 Label("在 Finder 中打开", systemImage: "folder")
                     .padding(.horizontal, 12)
@@ -683,32 +869,30 @@ struct FolderNavigationRow: View {
     @State private var isHovering = false
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             // Folder icon
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(LinearGradient(
                         colors: [Color.blue.opacity(0.3), Color.blue.opacity(0.2)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
-                    .frame(width: 48, height: 48)
+                    .frame(width: 30, height: 30)
                 
                 Image(systemName: "folder.fill")
-                    .font(.title2)
+                    .font(.caption)
                     .foregroundStyle(.blue)
             }
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.body)
-                    .fontWeight(.medium)
+                    .fontWeight(.regular)
                     .foregroundStyle(.primary)
                 
-                Text("文件夹")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Optional subtitle if needed, or remove for compactness
             }
             
             Spacer()
@@ -719,28 +903,22 @@ struct FolderNavigationRow: View {
                     Image(systemName: "arrow.right.circle.fill")
                         .foregroundStyle(.blue)
                     Text("双击打开")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .transition(.opacity)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(isHovering ? Color.blue.opacity(0.08) : Color.clear)
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovering ? Color.secondary.opacity(0.1) : Color.clear)
         )
-        .glass(cornerRadius: 16, material: .ultraThin, shadowRadius: isHovering ? 4 : 0)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(isHovering ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-        .scaleEffect(isHovering ? 1.01 : 1.0)
-        .animation(.spring(response: 0.3), value: isHovering)
+        .contentShape(Rectangle())
         .onHover { hovering in
             isHovering = hovering
         }
-        .contentShape(Rectangle())
     }
 }
 
@@ -750,32 +928,32 @@ struct FilesystemFileRow: View {
     @State private var isHovering = false
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             // File icon
             RichFileIcon(path: url.path)
-                .frame(width: 48, height: 48)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                .frame(width: 30, height: 30)
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
             
-            VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
                 Text(url.lastPathComponent)
                     .font(.body)
-                    .fontWeight(.medium)
+                    .fontWeight(.regular)
                     .foregroundStyle(.primary)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(minWidth: 120, alignment: .leading)
                 
-                HStack(spacing: 8) {
-                    Text(fileSize)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Text(fileExtension)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(4)
-                }
+                Text(fileSize)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Text(fileExtension)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(3)
             }
             
             Spacer()
@@ -786,46 +964,46 @@ struct FilesystemFileRow: View {
                         NSWorkspace.shared.activateFileViewerSelecting([url])
                     } label: {
                         Image(systemName: "folder.fill")
-                            .foregroundStyle(.blue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("在 Finder 中显示")
                     
                     Button {
                         NSWorkspace.shared.open(url)
                     } label: {
                         Image(systemName: "arrow.up.right.square")
+                            .font(.caption)
                             .foregroundStyle(.blue)
                     }
                     .buttonStyle(.plain)
+                    .help("打开")
                 }
-                .transition(.opacity)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(isHovering ? Color.secondary.opacity(0.08) : Color.clear)
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovering ? Color.secondary.opacity(0.1) : Color.clear)
         )
-        .glass(cornerRadius: 16, material: .ultraThin, shadowRadius: isHovering ? 4 : 0)
-        .scaleEffect(isHovering ? 1.01 : 1.0)
-        .animation(.spring(response: 0.3), value: isHovering)
+        .contentShape(Rectangle())
         .onHover { hovering in
             isHovering = hovering
         }
-        .contentShape(Rectangle())
     }
     
     private var fileSize: String {
-        do {
-            let attrs = try Foundation.FileManager.default.attributesOfItem(atPath: url.path)
-            if let size = attrs[.size] as? Int64 {
-                return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
-            }
-        } catch {}
-        return ""
+        guard let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attr[.size] as? Int64 else {
+            return ""
+        }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
     
     private var fileExtension: String {
-        url.pathExtension.uppercased()
+        return url.pathExtension.uppercased()
     }
 }
+

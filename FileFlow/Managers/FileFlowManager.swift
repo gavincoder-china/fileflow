@@ -819,6 +819,41 @@ class FileFlowManager {
         await DatabaseManager.shared.saveFile(file, tags: tags)
         
         Logger.success("Manually organized: \(originalName) -> \(category.displayName)/\(subcategoryPath ?? "")")
+        
+        // 记录用户反馈 - 用于学习用户习惯
+        let fileExt = url.pathExtension
+        await UserFeedbackService.shared.recordFeedback(
+            fileType: fileExt,
+            aiCategory: category,  // TODO: 替换为实际 AI 建议
+            userCategory: category,
+            aiTags: [],
+            userTags: tags.map { $0.name }
+        )
+        
+        // 后台多模态分析 - 为 PDF/图片/音频提取内容
+        Task.detached(priority: .background) {
+            await self.performMultimodalAnalysis(for: file, at: destinationURL)
+        }
+    }
+    
+    /// 执行多模态分析
+    private func performMultimodalAnalysis(for file: ManagedFile, at url: URL) async {
+        do {
+            if let result = try await MultimodalAnalysisService.shared.analyzeFile(at: url) {
+                var updatedFile = file
+                
+                // 将提取的内容添加到摘要
+                if updatedFile.summary == nil || updatedFile.summary?.isEmpty == true {
+                    let preview = String(result.extractedText.prefix(500))
+                    updatedFile.summary = "[\(result.analysisType.rawValue)] \(preview)"
+                }
+                
+                await DatabaseManager.shared.saveFile(updatedFile, tags: file.tags)
+                Logger.success("多模态分析完成: \(file.displayName) - \(result.analysisType.rawValue)")
+            }
+        } catch {
+            Logger.debug("多模态分析跳过: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Mirror Mode File Organization

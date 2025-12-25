@@ -1,3 +1,10 @@
+//
+//  UnifiedHomeView.swift
+//  FileFlow
+//
+//  Unified Command Center - Merged Home + Insights Dashboard
+//
+
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -8,136 +15,187 @@ struct UnifiedHomeView: View {
     
     // Callbacks
     var onSearch: (String) -> Void = { _ in }
-    var onFilesDropped: (UploadMode) -> Void = { _ in } // Called after files are added to pendingFileURLs
+    var onFilesDropped: (UploadMode) -> Void = { _ in }
     
     // State
     @State private var searchText = ""
     @State private var isTargeted = false
-    @State private var isHoveringUpload = false
     @State private var selectedMode: UploadMode = .smart
     
+    // Dashboard Data
+    @State private var healthScore: Int = 0
+    @State private var activeFilesPercent: Double = 0
+    @State private var staleFilesCount: Int = 0
+    @State private var knowledgeLinksCount: Int = 0
+    @State private var pendingReviewCount: Int = 0
+    @State private var actionItems: [HomeActionItem] = []
+    @State private var knowledgeLinks: [(source: String, target: String, date: Date)] = []
+    @State private var tagHeatmapData: [(tag: String, count: Int, color: Color)] = []
+    @State private var lifecycleStats: [FileLifecycleStage: Int] = [:]
+    @State private var reviewedFilesCount: Int = 0
+    @State private var showCardReview = false
+    @State private var reverseSearchQuery = ""
+    @State private var reverseSearchResults: [ManagedFile] = []
+    
     var body: some View {
-        ZStack {
-            // Background Gradient (Subtle)
-            AuroraBackground()
-                .opacity(0.3)
-                .blur(radius: 60)
-            
-            ScrollView {
-                VStack(spacing: 48) {
+        ScrollView {
+                VStack(spacing: 32) {
                     
-                    // MARK: - Hero Section
-                    VStack(spacing: 32) {
-                        // Greeting or Title
-                        VStack(spacing: 8) {
-                            Text(greetingText())
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary)
-                            Text("今天想整理些什么？")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.top, 40)
-                        
-                        // Hero Search & Upload Bar
-                        HeroSearchBar(
-                            searchText: $searchText,
-                            isTargeted: $isTargeted,
-                            onCommit: {
-                                if !searchText.isEmpty {
-                                    onSearch(searchText)
-                                }
-                            },
-                            onUpload: {
-                                appState.showFileImporter = true
-                            },
-                            onDrop: { providers in
-                                handleDrop(providers: providers)
+                    // MARK: - Hero Section (Search + Health Score)
+                    HStack(alignment: .top, spacing: 32) {
+                        // Left: Search & Upload
+                        VStack(spacing: 24) {
+                            VStack(spacing: 8) {
+                                Text(greetingText())
+                                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                                Text("今天想整理些什么？")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
-                        )
-                        .frame(maxWidth: 700)
-                        
-                        // Mode Selector Pills
-                        HStack(spacing: 12) {
-                            ForEach(UploadMode.allCases) { mode in
-                                ModeSelectorPill(
-                                    mode: mode,
-                                    isSelected: selectedMode == mode
-                                ) {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        selectedMode = mode
+                            
+                            HeroSearchBar(
+                                searchText: $searchText,
+                                isTargeted: $isTargeted,
+                                onCommit: { if !searchText.isEmpty { onSearch(searchText) } },
+                                onUpload: { appState.showFileImporter = true },
+                                onDrop: { handleDrop(providers: $0) }
+                            )
+                            .frame(maxWidth: 700)
+                            
+                            // Mode Pills
+                            HStack(spacing: 8) {
+                                ForEach(UploadMode.allCases) { mode in
+                                    ModeSelectorPill(mode: mode, isSelected: selectedMode == mode) {
+                                        withAnimation { selectedMode = mode }
                                     }
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        
+
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 24)
                     
-                    // MARK: - Dashboard Grid
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 24)], spacing: 24) {
-                        
-                        // Recent Files Card
-                        DashboardCard(title: "最近整理", icon: "clock.arrow.circlepath") {
-                            if appState.recentFiles.isEmpty {
-                                ContentUnavailableView("暂无最近文件", systemImage: "doc.on.doc")
-                            } else {
-                                VStack(spacing: 12) {
-                                    ForEach(appState.recentFiles.prefix(5)) { file in
-                                        RecentFileCompactRow(file: file)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Popular Tags Card
-                        DashboardCard(title: "常用标签", icon: "star.fill") {
-                            if appState.sidebarTags.isEmpty {
-                                ContentUnavailableView("暂无标签", systemImage: "tag.slash")
-                            } else {
-                                FlowLayout(spacing: 10) {
-                                    ForEach(appState.sidebarTags.prefix(10)) { tag in
-                                        TagManagerChip(
-                                            tag: tag,
-                                            isFavoriteSection: false,
-                                            onToggleFavorite: {}, // Read-only here
-                                            onRename: {},
-                                            onDelete: {}
-                                        )
-                                        .scaleEffect(0.9) // Slightly smaller
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Quick Folders (PARA)
-                        DashboardCard(title: "快速访问", icon: "folder.fill") {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                ForEach(PARACategory.allCases) { category in
-                                    Button {
-                                        // Navigate to category
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: category.icon)
-                                                .foregroundStyle(category.color)
-                                            Text(category.displayName)
-                                                .font(.headline)
-                                        }
-                                        .padding()
-                                        .frame(maxWidth: .infinity)
-                                        .background(category.color.opacity(0.1))
-                                        .cornerRadius(12)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
+                    // MARK: - Action Items Banner
+                    if !actionItems.isEmpty {
+                        ActionItemsBanner(items: actionItems, onAction: handleActionItem)
+                            .padding(.horizontal, 40)
                     }
-                    .padding(.horizontal, 32)
-                    .frame(maxWidth: 1200)
+                    
+                    // MARK: - Main Content Grid
+                    HStack(alignment: .top, spacing: 24) {
+                        // Main content (Files + Knowledge Links)
+                        dashboardLeftContent
+                        
+                        // Right sidebar (Analytics) - only show if there's room
+                        dashboardRightContent
+                            .frame(width: 280)
+                            .layoutPriority(-1) // Lower priority, can be compressed
+                    }
+                    .padding(.horizontal, 40)
                 }
                 .padding(.bottom, 60)
             }
+        .task {
+            await loadDashboardData()
         }
+        .sheet(isPresented: $showCardReview) {
+            ReviewSessionView()
+        }
+    }
+    
+    // MARK: - Data Loading
+    private func loadDashboardData() async {
+        // Lifecycle stats
+        lifecycleStats = await LifecycleService.shared.getLifecycleStats()
+        let totalFiles = lifecycleStats.values.reduce(0, +)
+        let activeFiles = lifecycleStats[.active] ?? 0
+        activeFilesPercent = totalFiles > 0 ? Double(activeFiles) / Double(totalFiles) * 100 : 0
+        
+        // Stale files
+        let suggestions = await LifecycleService.shared.getCleanupSuggestions()
+        staleFilesCount = suggestions.count
+        
+        // Knowledge stats
+        let knowledgeStats = await KnowledgeLinkService.shared.getStats()
+        knowledgeLinksCount = knowledgeStats.links
+        pendingReviewCount = knowledgeStats.needsReview
+        reviewedFilesCount = knowledgeStats.reviewed
+        
+        // Health score
+        let activeScore = min(activeFilesPercent, 100)
+        let staleScore = max(0, 100 - Double(staleFilesCount) * 5)
+        let linkScore = min(Double(knowledgeLinksCount) * 2, 100)
+        let reviewScore = max(0, 100 - Double(pendingReviewCount) * 10)
+        healthScore = Int((activeScore * 0.3 + staleScore * 0.3 + linkScore * 0.2 + reviewScore * 0.2))
+        
+        // Build action items
+        actionItems = await buildActionItems(suggestions: suggestions)
+        
+        // Load tag heatmap
+        tagHeatmapData = await loadTagHeatmap()
+        
+        // Load knowledge links
+        knowledgeLinks = await loadKnowledgeLinks()
+    }
+    
+    private func buildActionItems(suggestions: [LifecycleCleanupSuggestion]) async -> [HomeActionItem] {
+        var items: [HomeActionItem] = []
+        
+        if !suggestions.isEmpty {
+            items.append(HomeActionItem(
+                type: .staleFiles,
+                title: "\(suggestions.count) 个休眠文件",
+                action: { Task { await performBulkCleanup() } }
+            ))
+        }
+        
+        let cards = await KnowledgeLinkService.shared.getCardsForReview()
+        if !cards.isEmpty {
+            items.append(HomeActionItem(
+                type: .pendingReview,
+                title: "\(cards.count) 张待复习",
+                action: { showCardReview = true }
+            ))
+        }
+        
+        // Similar tags (placeholder)
+        // items.append(...)
+        
+        return items
+    }
+    
+    private func loadTagHeatmap() async -> [(tag: String, count: Int, color: Color)] {
+        let tags = await DatabaseManager.shared.getAllTags()
+        return tags.sorted { $0.usageCount > $1.usageCount }
+            .prefix(10)
+            .map { ($0.name, $0.usageCount, $0.swiftUIColor) }
+    }
+    
+    private func loadKnowledgeLinks() async -> [(source: String, target: String, date: Date)] {
+        // Placeholder - would load from KnowledgeLinkService
+        return []
+    }
+    
+    private func performReverseSearch() {
+        guard !reverseSearchQuery.isEmpty else { return }
+        Task {
+            let results = await KnowledgeLinkService.shared.reverseSearch(keyword: reverseSearchQuery)
+            reverseSearchResults = results.map { $0.0 }
+        }
+    }
+    
+    private func performBulkCleanup() async {
+        let suggestions = await LifecycleService.shared.getCleanupSuggestions()
+        let files = suggestions.map { $0.file }
+        await LifecycleService.shared.batchArchiveStaleFiles(files: files)
+        await loadDashboardData()
+    }
+    
+    private func handleActionItem(_ item: HomeActionItem) {
+        item.action()
     }
     
     private func greetingText() -> String {
@@ -150,7 +208,8 @@ struct UnifiedHomeView: View {
     }
     
     private func handleDrop(providers: [NSItemProvider]) {
-        Task {
+        // 使用 detached task 避免阻塞主线程
+        Task.detached(priority: .userInitiated) {
             let urls: [URL] = await withTaskGroup(of: URL?.self) { group in
                 for provider in providers {
                     group.addTask {
@@ -168,19 +227,325 @@ struct UnifiedHomeView: View {
                 return results
             }
             
-            await MainActor.run {
-                let uniqueNewURLs = urls.filter { !self.pendingFileURLs.contains($0) }
+            await MainActor.run { [self] in
+                // 使用 Set 进行 O(1) 去重检查
+                let existingSet = Set(self.pendingFileURLs)
+                let uniqueNewURLs = urls.filter { !existingSet.contains($0) }
                 if !uniqueNewURLs.isEmpty {
                     self.pendingFileURLs.append(contentsOf: uniqueNewURLs)
-                    // Notify parent with the selected mode
                     self.onFilesDropped(self.selectedMode)
                 }
             }
         }
     }
+    private func todayCount() -> Int {
+        appState.recentFiles.filter { Calendar.current.isDateInToday($0.importedAt) }.count
+    }
 }
 
-// MARK: - Components
+// MARK: - Supporting Components
+
+struct HomeActionItem: Identifiable {
+    let id = UUID()
+    let type: ActionType
+    let title: String
+    let action: () -> Void
+    
+    enum ActionType {
+        case staleFiles, pendingReview, similarTags
+        
+        var icon: String {
+            switch self {
+            case .staleFiles: return "moon.zzz.fill"
+            case .pendingReview: return "book.fill"
+            case .similarTags: return "arrow.triangle.merge"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .staleFiles: return .orange
+            case .pendingReview: return .purple
+            case .similarTags: return .cyan
+            }
+        }
+        
+        var actionLabel: String {
+            switch self {
+            case .staleFiles: return "归档"
+            case .pendingReview: return "复习"
+            case .similarTags: return "合并"
+            }
+        }
+    }
+}
+
+struct HealthScoreMiniCard: View {
+    let score: Int
+    let activePercent: Double
+    let staleCount: Int
+    let linksCount: Int
+    let reviewCount: Int
+    
+    var scoreColor: Color {
+        if score >= 80 { return .green }
+        if score >= 50 { return .orange }
+        return .red
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Score Circle
+            ZStack {
+                Circle()
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 8)
+                Circle()
+                    .trim(from: 0, to: CGFloat(score) / 100)
+                    .stroke(scoreColor.gradient, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.8), value: score)
+                
+                VStack(spacing: 2) {
+                    Text("\(score)")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundStyle(scoreColor)
+                    Text("健康分")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 100, height: 100)
+            
+            // Mini Metrics
+            HStack(spacing: 16) {
+                MiniMetric(icon: "bolt.fill", value: "\(Int(activePercent))%", color: .green)
+                MiniMetric(icon: "moon.zzz", value: "\(staleCount)", color: .orange)
+                MiniMetric(icon: "link", value: "\(linksCount)", color: .blue)
+            }
+        }
+        .padding(20)
+        .background(.ultraThinMaterial)
+        .cornerRadius(24)
+    }
+}
+
+struct MiniMetric: View {
+    let icon: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.caption.bold())
+        }
+    }
+}
+
+struct ActionItemsBanner: View {
+    let items: [HomeActionItem]
+    let onAction: (HomeActionItem) -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            
+            Text("需要关注")
+                .font(.subheadline.bold())
+            
+            Spacer()
+            
+            ForEach(items) { item in
+                Button {
+                    onAction(item)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: item.type.icon)
+                        Text(item.title)
+                            .font(.caption)
+                        Text(item.type.actionLabel)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(item.type.color.opacity(0.2))
+                            .cornerRadius(6)
+                    }
+                    .foregroundStyle(item.type.color)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+    }
+}
+
+struct AnalyticsDashboardCard: View {
+    let lifecycleStats: [FileLifecycleStage: Int]
+    let categoryStats: [PARACategory: Int]
+    let totalFiles: Int
+    let totalSize: Int64
+    let todayCount: Int
+    let reviewedCount: Int
+    
+    @State private var showTreemap = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Title
+            HStack {
+                Image(systemName: "chart.pie.fill")
+                    .foregroundStyle(.purple)
+                Text("存储分析")
+                    .font(.headline)
+                Spacer()
+                
+                Button(action: { showTreemap = true }) {
+                    Image(systemName: "square.grid.3x3.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("查看磁盘分布图")
+            }
+            
+            // Key Metrics Grid
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                StatItem(label: "总文件", value: "\(totalFiles)", color: .primary)
+                
+                StatItem(label: "存储占用", value: ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file), color: .orange)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showTreemap = true }
+                    .help("点击查看详细分布")
+                
+                StatItem(label: "今日新增", value: "+\(todayCount)", color: .blue)
+                StatItem(label: "已学习", value: "\(reviewedCount)", color: .green)
+            }
+            .padding(.vertical, 4)
+            .sheet(isPresented: $showTreemap) {
+                DiskUsageView()
+                    .frame(width: 800, height: 600)
+            }
+            
+            Divider()
+            
+            // Lifecycle Bar
+            if totalFiles > 0 {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("生命周期流转")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        Text("\(Int(lifecycleStats[.active] ?? 0)) 活跃")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    
+                    GeometryReader { geo in
+                        HStack(spacing: 2) {
+                            ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
+                                let count = lifecycleStats[stage] ?? 0
+                                let width = (CGFloat(count) / CGFloat(totalFiles)) * geo.size.width
+                                if count > 0 {
+                                    Rectangle()
+                                        .fill(stage.color)
+                                        .frame(width: max(width, 4))
+                                        .overlay(
+                                            Rectangle()
+                                                .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
+                                        )
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 12)
+                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    
+                    // Legend
+                    HStack(spacing: 8) {
+                        ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
+                            if (lifecycleStats[stage] ?? 0) > 0 {
+                                HStack(spacing: 4) {
+                                    Circle().fill(stage.color).frame(width: 6, height: 6)
+                                    Text(stage.displayName)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Divider()
+            
+            // Category Distribution
+            VStack(alignment: .leading, spacing: 12) {
+                Text("分类分布")
+                    .font(.subheadline.bold())
+                
+                ForEach(PARACategory.allCases) { cat in
+                    let count = categoryStats[cat] ?? 0
+                    if count > 0 {
+                        HStack {
+                            Label(cat.displayName, systemImage: cat.icon)
+                                .font(.caption)
+                                .foregroundStyle(cat.color)
+                                .frame(width: 80, alignment: .leading)
+                            
+                            GeometryReader { geo in
+                                let maxCount = categoryStats.values.max() ?? 1
+                                let width = CGFloat(count) / CGFloat(maxCount) * geo.size.width
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(cat.color.opacity(0.3))
+                                    .frame(width: max(width, 4))
+                            }
+                            .frame(height: 8)
+                            
+                            Text("\(count)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .background(.ultraThinMaterial)
+        .cornerRadius(24)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+    }
+}
+
+struct KnowledgeCardReviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack {
+            HStack {
+                Text("知识卡片复习")
+                    .font(.title2.bold())
+                Spacer()
+                Button("完成") { dismiss() }
+            }
+            .padding()
+            
+            // Placeholder - would embed actual card review UI
+            ContentUnavailableView("复习功能", systemImage: "book.fill", description: Text("知识卡片复习界面"))
+        }
+        .frame(minWidth: 600, minHeight: 400)
+    }
+}
+
+// MARK: - Preserved Components
 
 struct HeroSearchBar: View {
     @Binding var searchText: String
@@ -193,20 +558,17 @@ struct HeroSearchBar: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            // Search Icon / Drop Indicator
             Image(systemName: isTargeted ? "arrow.down.doc.fill" : "magnifyingglass")
                 .font(.system(size: 24))
                 .foregroundStyle(isTargeted ? .blue : .secondary)
-                .symbolEffect(.bounce, value: isTargeted)
+                // 移除 symbolEffect 减少性能开销
             
-            // Input Field
             TextField(isTargeted ? "松手上传文件..." : "搜索文件、标签或拖拽上传...", text: $searchText)
                 .font(.title3)
                 .textFieldStyle(.plain)
                 .focused($isFocused)
                 .onSubmit(onCommit)
             
-            // Upload Button
             Button(action: onUpload) {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .bold))
@@ -216,119 +578,36 @@ struct HeroSearchBar: View {
                     .shadow(color: .blue.opacity(0.3), radius: 5)
             }
             .buttonStyle(.plain)
-             // Keyboard shortcut for upload?
         }
         .padding(20)
-        .background {
+        .background(
             RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 10)
-        }
-        .overlay {
+                .fill(.regularMaterial)
+                .opacity(isTargeted ? 0 : 1)
+        )
+        .background(
             RoundedRectangle(cornerRadius: 24)
-                .stroke(isTargeted ? Color.blue : .white.opacity(0.15), lineWidth: isTargeted ? 2 : 1)
-        }
+                .fill(Color.blue.opacity(0.15))
+                .opacity(isTargeted ? 1 : 0)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .shadow(color: isTargeted ? .blue.opacity(0.5) : .black.opacity(0.12), radius: isTargeted ? 30 : 20, x: 0, y: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(isTargeted ? Color.blue : .white.opacity(0.15), lineWidth: isTargeted ? 3 : 1)
+        )
         .scaleEffect(isTargeted ? 1.02 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTargeted)
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             onDrop(providers)
             return true
         }
-        .onTapGesture {
-            isFocused = true
-        }
+        .onTapGesture { isFocused = true }
     }
 }
 
-struct DashboardCard<Content: View>: View {
-    let title: String
-    let icon: String // SF Symbol
-    @ViewBuilder let content: Content
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(.blue)
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-            }
-            
-            content
-        }
-        .padding(20)
-        .background {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.05), radius: 10, y: 5)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-        )
-    }
-}
-
-struct RecentFileCompactRow: View {
-    let file: ManagedFile
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            RichFileIcon(path: file.newPath)
-                .frame(width: 32, height: 32)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.newName.isEmpty ? file.originalName : file.newName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                
-                Text(file.importedAt.timeAgo())
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding(8)
-        .background(Color.primary.opacity(0.03))
-        .cornerRadius(12)
-    }
-}
-
-struct QuickActionPill: View {
-    let icon: String
-    let title: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                Text(title)
-            }
-            .font(.subheadline)
-            .fontWeight(.medium)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
-            .cornerRadius(20)
-            .overlay(
-                Capsule()
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Mode Selector Pill
 struct ModeSelectorPill: View {
     let mode: UploadMode
     let isSelected: Bool
@@ -336,32 +615,245 @@ struct ModeSelectorPill: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: mode.icon)
-                    .font(.system(size: 14))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(mode.title)
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(mode.shortDescription)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
+            HStack(spacing: 6) {
+                Image(systemName: mode.icon).font(.system(size: 12))
+                Text(mode.title).font(.system(size: 12, weight: .medium))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(isSelected ? mode.color.opacity(0.15) : Color.primary.opacity(0.04))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? mode.color : Color.primary.opacity(0.1), lineWidth: isSelected ? 1.5 : 1)
-            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(isSelected ? mode.color.opacity(0.15) : Color.primary.opacity(0.04)))
+            .overlay(Capsule().stroke(isSelected ? mode.color : Color.primary.opacity(0.1), lineWidth: 1))
             .foregroundStyle(isSelected ? mode.color : .primary)
         }
         .buttonStyle(.plain)
-        .scaleEffect(isSelected ? 1.05 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
     }
 }
 
+struct BentoCard<Content: View>: View {
+    let title: String
+    let icon: String
+    let color: Color
+    @ViewBuilder let content: Content
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: icon).foregroundStyle(color).font(.title3)
+                Text(title).font(.headline).foregroundStyle(.primary)
+                Spacer()
+            }
+            content
+        }
+        .padding(20)
+        .background(RoundedRectangle(cornerRadius: 24).fill(.ultraThinMaterial).shadow(color: .black.opacity(0.05), radius: 10, y: 5))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+    }
+}
+
+struct RecentFileDetailedRow: View {
+    @EnvironmentObject var appState: AppState
+    let file: ManagedFile
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RichFileIcon(path: file.newPath)
+                .frame(width: 40, height: 40)
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(file.newName.isEmpty ? file.originalName : file.newName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading) // Ensure left alignment
+                
+                HStack(spacing: 6) {
+                    Label(file.category.displayName, systemImage: file.category.icon)
+                        .font(.caption2)
+                        .foregroundStyle(file.category.color)
+                    
+                    if let sub = file.subcategory {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(sub)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .layoutPriority(1) // Prioritize text space
+            
+            Spacer(minLength: 10)
+            
+            Text(file.importedAt.timeAgo())
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 50, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            appState.navigationTarget = AppState.NavigationTarget(
+                category: file.category,
+                subcategory: file.subcategory,
+                file: file
+            )
+        }
+        .contextMenu {
+            Button {
+                FileFlowManager.shared.revealInFinder(url: URL(fileURLWithPath: file.newPath))
+            } label: {
+                Label("打开文件位置", systemImage: "folder")
+            }
+            
+            Button {
+                let link = "fileflow://open?id=\(file.id.uuidString)"
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(link, forType: .string)
+            } label: {
+                Label("复制文件链接", systemImage: "link")
+            }
+        }
+    }
+}
+
+struct StatisticsCardContent: View {
+    @EnvironmentObject var appState: AppState
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 0) {
+                StatItem(label: "今日新增", value: "\(todayCount())", color: .blue)
+                Divider().frame(height: 24)
+                StatItem(label: "总文件", value: "\(appState.statistics?.totalFiles ?? 0)", color: .purple)
+                Divider().frame(height: 24)
+                StatItem(label: "存储占用", value: formatSize(appState.statistics?.totalSize ?? 0), color: .orange)
+            }
+        }
+    }
+    
+    private func todayCount() -> Int {
+        return appState.recentFiles.filter { Calendar.current.isDateInToday($0.importedAt) }.count
+    }
+    
+    private func formatSize(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+struct StatItem: View {
+    let label: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value).font(.system(.headline, design: .rounded)).fontWeight(.bold).foregroundStyle(color)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Layout Extensions
+extension UnifiedHomeView {
+    @ViewBuilder
+    var dashboardLeftContent: some View {
+        VStack(spacing: 24) {
+            // Recent Files
+            BentoCard(title: "最近文件", icon: "clock.fill", color: .blue) {
+                if appState.recentFiles.isEmpty {
+                    ContentUnavailableView("暂无最近文件", systemImage: "doc.on.doc")
+                        .frame(height: 200)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(appState.recentFiles.prefix(6)) { file in
+                            RecentFileDetailedRow(file: file)
+                            if file.id != appState.recentFiles.prefix(6).last?.id {
+                                Divider().padding(.leading, 64)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Knowledge Links Panel
+            BentoCard(title: "知识链接", icon: "link", color: .cyan) {
+                VStack(spacing: 12) {
+                    // Reverse Search
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("反向搜索：查找提及某关键词的文件...", text: $reverseSearchQuery)
+                            .textFieldStyle(.plain)
+                            .onSubmit { performReverseSearch() }
+                    }
+                    .padding(10)
+                    .background(Color.primary.opacity(0.05))
+                    .cornerRadius(10)
+                    
+                    if !reverseSearchResults.isEmpty {
+                        VStack(spacing: 8) {
+                            ForEach(reverseSearchResults.prefix(5)) { file in
+                                HStack {
+                                    Image(systemName: "doc.text")
+                                        .foregroundStyle(.cyan)
+                                    Text(file.displayName)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    } else if knowledgeLinks.isEmpty {
+                        Text("暂无知识链接")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(height: 60)
+                    } else {
+                        // Show recent links
+                        ForEach(knowledgeLinks.prefix(5), id: \.source) { link in
+                            HStack {
+                                Text(link.source)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Image(systemName: "arrow.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(link.target)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(link.date.timeAgo())
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    var dashboardRightContent: some View {
+        VStack(spacing: 24) {
+             // Analytics Dashboard
+             AnalyticsDashboardCard(
+                 lifecycleStats: lifecycleStats,
+                 categoryStats: appState.statistics?.byCategory ?? [:],
+                 totalFiles: appState.statistics?.totalFiles ?? 0,
+                 totalSize: appState.statistics?.totalSize ?? 0,
+                 todayCount: todayCount(),
+                 reviewedCount: reviewedFilesCount
+             )
+        }
+    }
+}

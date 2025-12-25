@@ -11,39 +11,52 @@ struct RuleConfigurationView: View {
     @State private var rules: [AutoRule] = []
     @State private var showingEditor = false
     @State private var editingRule: AutoRule?
+    @State private var showingPresetTemplates = false
     
     var body: some View {
         VStack {
             List {
-                ForEach($rules) { $rule in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(rule.name)
-                                .font(.headline)
-                            Text("\(rule.conditions.count) 个条件, \(rule.actions.count) 个动作")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        Toggle("", isOn: $rule.isEnabled)
-                            .onChange(of: rule.isEnabled) { _, _ in
-                                save(rule)
+                // Preset Templates Section
+                Section {
+                    DisclosureGroup("📦 预置模板 (一键添加)", isExpanded: $showingPresetTemplates) {
+                        ForEach(PresetRuleTemplate.allTemplates) { template in
+                            PresetTemplateRow(template: template) {
+                                addPresetRule(template)
                             }
-                            .labelsHidden()
-                        
-                        Button(action: { editingRule = rule }) {
-                            Image(systemName: "pencil")
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.vertical, 4)
                 }
-                .onDelete(perform: deleteRules)
+                
+                // Existing Rules Section
+                Section(header: Text("已配置规则")) {
+                    ForEach($rules) { $rule in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(rule.name)
+                                    .font(.headline)
+                                Text("\(rule.conditions.count) 个条件, \(rule.actions.count) 个动作")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: $rule.isEnabled)
+                                .onChange(of: rule.isEnabled) { _, _ in
+                                    save(rule)
+                                }
+                                .labelsHidden()
+                            
+                            Button(action: { editingRule = rule }) {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .onDelete(perform: deleteRules)
+                }
             }
-            // Add a footer with "Add" button if list is empty or for easier access?
-            // Standard macOS UI puts add/remove at bottom of list or in toolbar.
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -104,6 +117,14 @@ struct RuleConfigurationView: View {
             for file in files {
                 await RuleEngine.shared.applyRules(to: file)
             }
+        }
+    }
+    
+    private func addPresetRule(_ template: PresetRuleTemplate) {
+        let newRule = template.createRule()
+        Task {
+            await DatabaseManager.shared.saveRule(newRule)
+            loadRules()
         }
     }
 }
@@ -201,5 +222,41 @@ struct RuleEditorView: View {
         #if os(macOS)
         .frame(minWidth: 600, minHeight: 500)
         #endif
+    }
+}
+
+// MARK: - Preset Template Row
+struct PresetTemplateRow: View {
+    let template: PresetRuleTemplate
+    let onAdd: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: template.icon)
+                .font(.title2)
+                .foregroundStyle(.blue)
+                .frame(width: 32)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(template.name)
+                    .font(.body.weight(.medium))
+                Text(template.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            Button {
+                onAdd()
+            } label: {
+                Label("添加", systemImage: "plus.circle.fill")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 6)
     }
 }

@@ -52,14 +52,13 @@ extension View {
 // MARK: - Animated Background Gradient
 struct AuroraBackground: View {
     @EnvironmentObject var appState: AppState
-    @State private var animate = false
     
     var body: some View {
         ZStack {
-            // Layer 0: System Base
-            Color(nsColor: .windowBackgroundColor)
+            // Base: Pure White
+            Color.white
             
-            // Layer 1: Wallpaper
+            // Layer 1: Wallpaper (Optional)
             if appState.useBingWallpaper {
                 if let url = appState.wallpaperURL {
                     AsyncImage(url: url) { image in
@@ -72,48 +71,14 @@ struct AuroraBackground: View {
                     .transition(.opacity.animation(.easeInOut(duration: 0.8)))
                     .opacity(appState.wallpaperOpacity)
                     .blur(radius: appState.wallpaperBlur)
-                }
-                
-                // Overlay for readability
-                if appState.showGlassOverlay {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.8)
-                }
-            } else {
-                // Secondary Fallback Gradient
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
-            
-            // Layer 2: Animated Floating Blobs (Premium Depth)
-            GeometryReader { proxy in
-                ZStack {
-                    // Projects Indigo Bloom
-                    Circle()
-                        .fill(Color(hex: "#4F46E5")?.opacity(0.18) ?? .blue.opacity(0.15))
-                        .frame(width: 600, height: 600)
-                        .blur(radius: 120)
-                        .offset(x: animate ? -proxy.size.width * 0.3 : proxy.size.width * 0.2, 
-                                y: animate ? -proxy.size.height * 0.2 : proxy.size.height * 0.3)
                     
-                    // Areas Amethyst Bloom
-                    Circle()
-                        .fill(Color(hex: "#A855F7")?.opacity(0.14) ?? .purple.opacity(0.12))
-                        .frame(width: 500, height: 500)
-                        .blur(radius: 100)
-                        .offset(x: animate ? proxy.size.width * 0.4 : -proxy.size.width * 0.2, 
-                                y: animate ? proxy.size.height * 0.3 : -proxy.size.height * 0.2)
+                    // Overlay for readability
+                    if appState.showGlassOverlay {
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.8)
+                    }
                 }
-                .blendMode(.plusLighter)
-            }
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 15).repeatForever(autoreverses: true)) {
-                animate.toggle()
             }
         }
         .ignoresSafeArea()

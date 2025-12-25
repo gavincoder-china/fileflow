@@ -22,6 +22,10 @@ struct ContentView: View {
         case search
         case graph
         case tagManager
+        case cardReview // 知识卡片复习
+        case calendar   // 活动日历
+        case timeCapsule // 时间胶囊
+        case settings   // 设置
     }
     
     var body: some View {
@@ -61,12 +65,24 @@ struct ContentView: View {
                 case .tagManager:
                     TagManagerView()
                         .id("tagManager")
+                case .cardReview:
+                    CardReviewView()
+                        .id("cardReview")
+                case .calendar:
+                    ActivityCalendarView()
+                        .id("calendar")
+                case .timeCapsule:
+                    TimeCapsuleView()
+                        .id("timeCapsule")
+                case .settings:
+                    SettingsView()
+                        .id("settings")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.clear) // Force clear detail background
         }
-        .background(Color.clear) // Force clear NavigationSplitView background
+        .navigationSplitViewStyle(.balanced) // Ensure proper sidebar/detail balance
+        .background(Color.clear)
         .overlay(alignment: .bottom) {
             if !appState.pendingNewFiles.isEmpty {
                 NewFilesToast(count: appState.pendingNewFiles.count) {
@@ -78,6 +94,22 @@ struct ContentView: View {
                 }
                 .padding()
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .overlay {
+            if appState.showCommandPalette {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            appState.showCommandPalette = false
+                        }
+                    
+                    CommandPaletteView()
+                        .environmentObject(appState)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+                .animation(.easeOut(duration: 0.15), value: appState.showCommandPalette)
             }
         }
         .sheet(isPresented: Binding(
@@ -137,6 +169,11 @@ struct ContentView: View {
                 .environmentObject(appState)
         }
         .scrollContentBackground(.hidden) // Ensure all detail views are transparent
+        .onChange(of: appState.navigationTarget) { _, target in
+            if let target = target {
+                selectedSidebarItem = .category(target.category)
+            }
+        }
     }
 }
 
@@ -208,6 +245,27 @@ struct SidebarView: View {
                     isSelected: selectedItem == .graph,
                     color: .indigo
                 ) { selectedItem = .graph }
+                
+                SidebarItemRow(
+                    title: "卡片复习",
+                    icon: "rectangle.stack.fill",
+                    isSelected: selectedItem == .cardReview,
+                    color: .orange
+                ) { selectedItem = .cardReview }
+                
+                SidebarItemRow(
+                    title: "活动日历",
+                    icon: "calendar",
+                    isSelected: selectedItem == .calendar,
+                    color: .green
+                ) { selectedItem = .calendar }
+                
+                SidebarItemRow(
+                    title: "时间胶囊",
+                    icon: "hourglass",
+                    isSelected: selectedItem == .timeCapsule,
+                    color: .purple
+                ) { selectedItem = .timeCapsule }
             }
             .designRounded()
             
@@ -258,6 +316,36 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .frame(minWidth: 230)
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                selectedItem = .settings
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.gray.gradient)
+                            .frame(width: 22, height: 22)
+                        
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    
+                    Text("设置")
+                        .font(.system(size: 13))
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(selectedItem == .settings ? Color.accentColor.opacity(0.15) : Color.clear)
+            .cornerRadius(8)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 12)
+        }
     }
 }
 
@@ -271,11 +359,18 @@ struct SidebarItemRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 24)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(color.gradient)
+                        .frame(width: 22, height: 22)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .bold)) // Finer, smaller icon
+                        .foregroundStyle(.white)
+                }
+                
                 Text(title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13)) // Lighter font
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .sidebarSelection(isSelected: isSelected, color: color)

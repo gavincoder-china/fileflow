@@ -18,6 +18,24 @@ class AIServiceFactory {
     static func createService() -> AIServiceProtocol {
         let provider = UserDefaults.standard.string(forKey: "aiProvider") ?? "openai"
         
+        let baseService: AIServiceProtocol
+        switch provider {
+        case "openai":
+            baseService = OpenAIService()
+        case "ollama":
+            baseService = OllamaService()
+        default:
+            baseService = MockAIService()
+        }
+        
+        // 包装为可重试服务
+        return RetryableAIService(wrapped: baseService)
+    }
+    
+    /// 创建不带重试的原始服务（用于测试连接）
+    static func createRawService() -> AIServiceProtocol {
+        let provider = UserDefaults.standard.string(forKey: "aiProvider") ?? "openai"
+        
         switch provider {
         case "openai":
             return OpenAIService()
@@ -26,6 +44,95 @@ class AIServiceFactory {
         default:
             return MockAIService()
         }
+    }
+}
+
+// MARK: - Retryable AI Service (Exponential Backoff)
+/// 带指数退避重试的 AI 服务包装器
+class RetryableAIService: AIServiceProtocol {
+    private let wrapped: AIServiceProtocol
+    private let maxRetries: Int
+    private let baseDelay: TimeInterval
+    private let maxDelay: TimeInterval
+    
+    init(wrapped: AIServiceProtocol, maxRetries: Int = 3, baseDelay: TimeInterval = 1.0, maxDelay: TimeInterval = 30.0) {
+        self.wrapped = wrapped
+        self.maxRetries = maxRetries
+        self.baseDelay = baseDelay
+        self.maxDelay = maxDelay
+    }
+    
+    func testConnection() async throws -> Bool {
+        try await wrapped.testConnection()
+    }
+    
+    func analyzeFile(content: String, fileName: String) async throws -> AIAnalysisResult {
+        var lastError: Error?
+        
+        for attempt in 0..<maxRetries {
+            do {
+                let result = try await wrapped.analyzeFile(content: content, fileName: fileName)
+                if attempt > 0 {
+                    Logger.success("AI 分析成功 (第 \(attempt + 1) 次尝试)")
+                }
+                return result
+            } catch {
+                lastError = error
+                
+                // 判断是否可重试的错误
+                if !isRetryable(error) {
+                    Logger.error("AI 分析失败 (不可重试): \(error.localizedDescription)")
+                    throw error
+                }
+                
+                // 最后一次不等待
+                if attempt < maxRetries - 1 {
+                    let delay = calculateDelay(attempt: attempt)
+                    Logger.warning("AI 分析失败，\(String(format: "%.1f", delay))s 后重试 (第 \(attempt + 1)/\(maxRetries) 次): \(error.localizedDescription)")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
+            }
+        }
+        
+        Logger.error("AI 分析失败，已达最大重试次数: \(lastError?.localizedDescription ?? "未知错误")")
+        throw lastError ?? AIError.apiError("未知错误")
+    }
+    
+    /// 计算指数退避延迟 (带抖动)
+    private func calculateDelay(attempt: Int) -> TimeInterval {
+        let exponentialDelay = baseDelay * pow(2.0, Double(attempt))
+        let jitter = Double.random(in: 0...0.3) * exponentialDelay
+        return min(exponentialDelay + jitter, maxDelay)
+    }
+    
+    /// 判断错误是否可重试
+    private func isRetryable(_ error: Error) -> Bool {
+        if let aiError = error as? AIError {
+            switch aiError {
+            case .missingApiKey:
+                return false // 配置问题，不重试
+            case .parseError:
+                return true // 可能是临时问题
+            case .apiError(let message):
+                // 速率限制或服务器错误可重试
+                let retryableKeywords = ["rate limit", "timeout", "500", "502", "503", "504", "overloaded"]
+                return retryableKeywords.contains { message.lowercased().contains($0) }
+            case .invalidURL, .extractionError:
+                return false
+            }
+        }
+        
+        // URLError 通常可重试
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut, .networkConnectionLost, .notConnectedToInternet:
+                return true
+            default:
+                return false
+            }
+        }
+        
+        return false
     }
 }
 

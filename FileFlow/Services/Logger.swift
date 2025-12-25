@@ -32,12 +32,45 @@ enum Logger {
             case .critical: return .fault
             }
         }
+        
+        var name: String {
+            switch self {
+            case .debug: return "DEBUG"
+            case .info: return "INFO"
+            case .success: return "SUCCESS"
+            case .warning: return "WARNING"
+            case .error: return "ERROR"
+            case .critical: return "CRITICAL"
+            }
+        }
+    }
+    
+    // MARK: - Log Entry
+    
+    struct LogEntry: Identifiable, Codable {
+        let id: UUID
+        let timestamp: Date
+        let level: String
+        let message: String
+        let file: String
+        let line: Int
+        
+        var formattedDate: String {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+            return formatter.string(from: timestamp)
+        }
     }
     
     // MARK: - Private Properties
     
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.fileflow"
     private static let osLog = OSLog(subsystem: subsystem, category: "FileFlow")
+    
+    // Log history buffer (for export)
+    private static var logHistory: [LogEntry] = []
+    private static let maxHistorySize = 1000
+    private static let historyQueue = DispatchQueue(label: "com.fileflow.logger.history")
     
     #if DEBUG
     private static let isDebugBuild = true
@@ -90,6 +123,97 @@ enum Logger {
         
         // Always log to os.log for system logging
         os_log("%{public}@", log: osLog, type: level.osLogType, formattedMessage)
+        
+        // Store in history buffer (thread-safe)
+        historyQueue.async {
+            let entry = LogEntry(
+                id: UUID(),
+                timestamp: Date(),
+                level: level.name,
+                message: message,
+                file: fileName,
+                line: line
+            )
+            logHistory.append(entry)
+            
+            // Trim if exceeds max size
+            if logHistory.count > maxHistorySize {
+                logHistory.removeFirst(logHistory.count - maxHistorySize)
+            }
+        }
+    }
+    
+    // MARK: - Log History Access
+    
+    /// Get recent log entries
+    static func getRecentLogs(limit: Int = 100) -> [LogEntry] {
+        historyQueue.sync {
+            Array(logHistory.suffix(limit))
+        }
+    }
+    
+    /// Get logs filtered by level
+    static func getLogs(level: Level, limit: Int = 100) -> [LogEntry] {
+        historyQueue.sync {
+            logHistory.filter { $0.level == level.name }.suffix(limit).map { $0 }
+        }
+    }
+    
+    /// Clear log history
+    static func clearHistory() {
+        historyQueue.async {
+            logHistory.removeAll()
+        }
+    }
+    
+    // MARK: - Log Export
+    
+    /// Export logs to a file
+    static func exportLogs() -> URL? {
+        let logs = getRecentLogs(limit: maxHistorySize)
+        
+        var content = "FileFlow Diagnostic Logs\n"
+        content += "Exported: \(Date())\n"
+        content += "===================================\n\n"
+        
+        for entry in logs {
+            content += "[\(entry.formattedDate)] [\(entry.level)] [\(entry.file):\(entry.line)]\n"
+            content += "  \(entry.message)\n\n"
+        }
+        
+        // Save to temp file
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "fileflow_logs_\(Date().timeIntervalSince1970).txt"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        
+        do {
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            return fileURL
+        } catch {
+            Logger.error("Failed to export logs: \(error)")
+            return nil
+        }
+    }
+    
+    /// Export logs as JSON
+    static func exportLogsAsJSON() -> URL? {
+        let logs = getRecentLogs(limit: maxHistorySize)
+        
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "fileflow_logs_\(Date().timeIntervalSince1970).json"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(logs)
+            try data.write(to: fileURL)
+            return fileURL
+        } catch {
+            Logger.error("Failed to export logs as JSON: \(error)")
+            return nil
+        }
     }
     
     // MARK: - Convenience Methods for Common Patterns

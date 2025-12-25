@@ -13,8 +13,10 @@ struct TagFilesView: View {
     @State private var files: [ManagedFile] = []
     @State private var isLoading = true
     
-    // For Eagle-style layout reuse
     @State private var selectedFile: ManagedFile?
+    
+    // Reader State - using item binding
+    @State private var fileForReader: ManagedFile?
     
     private let database = DatabaseManager.shared
     
@@ -56,7 +58,10 @@ struct TagFilesView: View {
                     onRename: { _ in }, // Read-only in tag view for now or implement later
                     onDuplicate: { _ in },
                     onMove: { _ in },
-                    onDelete: { _ in }
+                    onDelete: { _ in },
+                    onOpenReader: { file in
+                        fileForReader = file
+                    }
                 )
             }
             .frame(maxWidth: .infinity)
@@ -72,10 +77,17 @@ struct TagFilesView: View {
                             await FileFlowManager.shared.updateFileTags(for: file, tags: tags)
                             await loadFiles()
                         }
+                    },
+                    onOpenReader: {
+                        fileForReader = file
                     }
                 )
                 .transition(.move(edge: .trailing))
             }
+        }
+        .sheet(item: $fileForReader) { file in
+            UniversalReaderView(file: file)
+                .frame(minWidth: 900, minHeight: 700)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: tag.id) {

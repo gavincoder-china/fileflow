@@ -50,14 +50,26 @@ class RuleEngine {
             // Convert bytes to KB for comparison consistency with UI label "KB"
             let kbSize = Double(file.fileSize) / 1024.0
             fileValue = String(format: "%.0f", kbSize)
+        case .lastAccessDays:
+            // Calculate days since last access
+            let days = Calendar.current.dateComponents([.day], from: file.lastAccessedAt, to: Date()).day ?? 0
+            fileValue = String(days)
+        case .lifecycleStage:
+            fileValue = file.lifecycleStage.rawValue
+        case .currentCategory:
+            fileValue = file.category.rawValue
+        case .createdDaysAgo:
+            // Calculate days since creation
+            let days = Calendar.current.dateComponents([.day], from: file.createdAt, to: Date()).day ?? 0
+            fileValue = String(days)
         }
         
         return compare(value: fileValue, conditionValue: condition.value, operator: condition.operator, field: condition.field)
     }
     
     private func compare(value: String, conditionValue: String, operator op: RuleOperator, field: RuleConditionField) -> Bool {
-        // Numeric comparison for File Size
-        if field == .fileSize {
+        // Numeric comparison for numeric fields
+        if field.isNumeric {
             guard let numValue = Double(value), let numCondition = Double(conditionValue) else {
                 return false
             }

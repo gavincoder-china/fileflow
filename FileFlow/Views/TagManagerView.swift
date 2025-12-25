@@ -14,6 +14,7 @@ struct TagManagerView: View {
     @State private var newTag = NewTagInput()
     @State private var tagToDelete: Tag?
     @State private var showDeleteConfirm = false
+    @State private var showingMergeSuggestions = false
     
     struct NewTagInput {
         var name: String = ""
@@ -156,6 +157,11 @@ struct TagManagerView: View {
                 addNewTag()
             }
         }
+        .sheet(isPresented: $showingMergeSuggestions, onDismiss: {
+            appState.refreshData()
+        }) {
+            TagMergeSuggestionView()
+        }
         .alert("确认删除", isPresented: $showDeleteConfirm) {
             Button("取消", role: .cancel) { }
             Button("删除", role: .destructive) {
@@ -219,6 +225,9 @@ struct TagManagerView: View {
             .menuStyle(.button)
             .buttonStyle(.plain)
             
+            // Merge Suggestions Button
+            mergeSuggestionsButton
+            
             Button {
                 showingAddTag = true
             } label: {
@@ -234,6 +243,20 @@ struct TagManagerView: View {
         .padding(.horizontal, 32)
         .padding(.top, 32)
         .padding(.bottom, 20)
+    }
+    
+    // MARK: - Merge Suggestions Button
+    private var mergeSuggestionsButton: some View {
+        Button {
+            showingMergeSuggestions = true
+        } label: {
+            Label("合并相似", systemImage: "arrow.triangle.merge")
+                .font(.headline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
     }
     
     // Removed sidebarConfigSection

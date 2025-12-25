@@ -16,11 +16,17 @@ import Combine
 @main
 struct FileFlowApp: App {
     @StateObject private var appState = AppState()
+    @ObservedObject private var themeManager = ThemeManager.shared
     
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(appState)
+            .environmentObject(appState)
+            .preferredColorScheme(themeManager.colorScheme)
+            .tint(themeManager.accentColor)
+            .onOpenURL { url in
+                appState.handleDeepLink(url)
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -46,6 +52,13 @@ struct FileFlowApp: App {
                 Button("更换根目录...") {
                     appState.showRootSelector = true
                 }
+            }
+            
+            CommandMenu("工具") {
+                Button("命令面板") {
+                    appState.showCommandPalette = true
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
             }
         }
         
@@ -82,13 +95,43 @@ struct RootView: View {
                     
                     ContentView()
                         .frame(minWidth: 900, minHeight: 600)
-                        .scrollContentBackground(.hidden) // Ensure all scrolls are transparent
+                        .scrollContentBackground(.hidden)
                 }
             }
         }
         .sheet(isPresented: $appState.showRootSelector) {
             RootSelectorSheet()
                 .environmentObject(appState)
+        }
+        .task {
+            // 启动后台服务
+            await initializeBackgroundServices()
+        }
+    }
+    
+    /// 初始化后台服务
+    private func initializeBackgroundServices() async {
+        // 1. 增量索引 - 检测文件变化
+        if await IncrementalIndexService.shared.hasChanges() {
+            Logger.info("🔄 检测到文件变化，开始增量索引...")
+            let changes = await IncrementalIndexService.shared.performIncrementalScan()
+            let added = changes.filter { $0.changeType == .added }.count
+            let deleted = changes.filter { $0.changeType == .deleted }.count
+            let modified = changes.filter { $0.changeType == .modified }.count
+            Logger.success("增量索引完成: +\(added) -\(deleted) ~\(modified)")
+        }
+        
+        // 2. 生命周期状态刷新 (无感自动化)
+        Task.detached(priority: .background) {
+            await LifecycleService.shared.refreshAllLifecycleStages()
+            Logger.info("♻️ 生命周期状态刷新完成")
+        }
+        
+        // 3. 语义索引 - 后台构建向量
+        Task.detached(priority: .background) {
+            let files = await DatabaseManager.shared.getRecentFiles(limit: 100)
+            let indexed = await SemanticSearchService.shared.indexFiles(files)
+            Logger.info("语义索引: \(indexed) 个文件")
         }
     }
 }
@@ -187,6 +230,7 @@ struct RootSelectorSheet: View {
 class AppState: ObservableObject {
     @Published var showFileImporter = false
     @Published var showBatchMode = false
+    @Published var showCommandPalette = false
     @Published var showRootSelector = false
     @Published var selectedCategory: PARACategory = .resources
     @Published var recentFiles: [ManagedFile] = []
@@ -194,6 +238,19 @@ class AppState: ObservableObject {
     @Published var sidebarTags: [Tag] = [] // Optimized list for sidebar
     @Published var searchQuery = ""
     @Published var statistics: (totalFiles: Int, totalSize: Int64, byCategory: [PARACategory: Int])?
+    @Published var navigationTarget: NavigationTarget?
+    
+    struct NavigationTarget: Equatable {
+        let category: PARACategory
+        let subcategory: String?
+        let file: ManagedFile?
+        
+        static func == (lhs: NavigationTarget, rhs: NavigationTarget) -> Bool {
+            return lhs.category == rhs.category &&
+                   lhs.subcategory == rhs.subcategory &&
+                   lhs.file?.id == rhs.file?.id
+        }
+    }
     
     // 背景壁纸设置
     @Published var wallpaperURL: URL?
@@ -257,9 +314,46 @@ class AppState: ObservableObject {
         }
         
         setupMonitoring()
+        setupPeriodicLifecycleScan()
+        setupPresetRulesIfNeeded()
         
         if useBingWallpaper {
             fetchDailyWallpaper(index: wallpaperIndex)
+        }
+    }
+    
+    /// 设置定期生命周期扫描 (每30分钟)
+    private func setupPeriodicLifecycleScan() {
+        // 使用 Timer 每 30 分钟静默扫描一次
+        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in
+            Task.detached(priority: .background) {
+                await LifecycleService.shared.refreshAllLifecycleStages()
+                Logger.info("♻️ 定时生命周期扫描完成")
+            }
+        }
+    }
+    
+    /// 首次启动时自动创建核心预置规则
+    private func setupPresetRulesIfNeeded() {
+        let hasSetupKey = "hasCreatedPresetRules"
+        guard !UserDefaults.standard.bool(forKey: hasSetupKey) else { return }
+        
+        Task {
+            // 检查是否已有规则
+            let existingRules = await DatabaseManager.shared.getAllRules()
+            if existingRules.isEmpty {
+                // 自动创建前2个最核心的生命周期规则
+                let coreTemplates = PresetRuleTemplate.allTemplates.prefix(2)
+                for template in coreTemplates {
+                    let rule = template.createRule()
+                    await DatabaseManager.shared.saveRule(rule)
+                    Logger.info("📋 自动创建预置规则: \(rule.name)")
+                }
+            }
+            
+            await MainActor.run {
+                UserDefaults.standard.set(true, forKey: hasSetupKey)
+            }
         }
     }
     
@@ -319,6 +413,9 @@ class AppState: ObservableObject {
             self.allTags = tags
             self.statistics = fileManager.getStatistics()
             
+            // Refresh lifecycle stages on startup
+            await LifecycleService.shared.refreshAllLifecycleStages()
+            
             // Optimized Sidebar Tags: Favorites + Top N Used (configurable)
             // Calculate strictly on MainActor to avoid threading issues
             var combinedTags: [Tag] = []
@@ -356,5 +453,45 @@ class AppState: ObservableObject {
     func refreshData() {
         loadInitialData()
         lastUpdateID = UUID()
+    }
+    
+    // MARK: - Deep Linking
+    @MainActor
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme == "fileflow" else { return }
+        Logger.info("🔗 Handling Deep Link: \(url.absoluteString)")
+        
+        // Use URLComponents to correctly parse host and query
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
+        
+        switch components.host {
+        case "open":
+            // fileflow://open?id=UUID
+            guard let idString = components.queryItems?.first(where: { $0.name == "id" })?.value,
+                  let id = UUID(uuidString: idString) else { return }
+            
+            Task {
+                if let file = await DatabaseManager.shared.getFile(byId: id) {
+                    navigationTarget = NavigationTarget(
+                        category: file.category,
+                        subcategory: file.subcategory,
+                        file: file
+                    )
+                }
+            }
+            
+        case "search":
+            // fileflow://search?q=query
+            guard let query = components.queryItems?.first(where: { $0.name == "q" })?.value else { return }
+            Logger.info("🔍 Deep Link Search: \(query)")
+            
+            // Switch to Home via some mechanism if needed, or just set search query
+            // Ideally we need to ensure we are on the right view.
+            // For now, let's just set the search query which is observed in ContentView/UnifiedHomeView
+            searchQuery = query
+            
+        default:
+            break
+        }
     }
 }

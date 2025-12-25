@@ -45,10 +45,10 @@ enum PARACategory: String, CaseIterable, Codable, Identifiable {
     
     var color: Color {
         switch self {
-        case .projects: return Color(hex: "#4F46E5") ?? .blue      // Indigo
-        case .areas: return Color(hex: "#A855F7") ?? .purple       // Amethyst
-        case .resources: return Color(hex: "#10B981") ?? .green   // Emerald
-        case .archives: return Color(hex: "#64748B") ?? .gray      // Slate
+        case .projects: return Color(hex: "#5856D6") ?? .indigo      // System Indigo
+        case .areas: return Color(hex: "#AF52DE") ?? .purple       // System Purple
+        case .resources: return Color(hex: "#28CD41") ?? .green    // System Green
+        case .archives: return Color(hex: "#8E8E93") ?? .gray      // System Gray
         }
     }
     
@@ -70,6 +70,8 @@ enum PARACategory: String, CaseIterable, Codable, Identifiable {
         }
     }
 }
+
+// ... (omitted lines) ...
 
 // MARK: - Tag
 struct Tag: Identifiable, Codable, Hashable {
@@ -96,7 +98,21 @@ struct Tag: Identifiable, Codable, Hashable {
     }
     
     var swiftUIColor: Color {
-        Color(hex: color) ?? .blue
+        // Auto-migration for legacy pastel colors to vivid system colors
+        let legacyMap: [String: String] = [
+            "#FF6B6B": "#FF3B30", // Red
+            "#4ECDC4": "#30B0C7", // Teal
+            "#45B7D1": "#007AFF", // Blue
+            "#96CEB4": "#28CD41", // Green
+            "#FFEAA7": "#FFCC00", // Yellow
+            "#DDA0DD": "#AF52DE", // Purple
+            "#98D8C8": "#00C7BE", // Mint
+            "#F7DC6F": "#FF9500", // Orange
+            "#BB8FCE": "#AF52DE", // Purple
+            "#85C1E9": "#32ADE6"  // Cyan
+        ]
+        let hex = legacyMap[color] ?? color
+        return Color(hex: hex) ?? .blue
     }
 }
 
@@ -122,6 +138,14 @@ struct ManagedFile: Identifiable, Codable, Transferable {
     var importedAt: Date
     var modifiedAt: Date
     
+    // MARK: - Lifecycle Tracking (PARA Lifecycle Management)
+    /// 文件生命周期阶段
+    var lifecycleStage: FileLifecycleStage
+    /// 最后访问时间（用于计算生命周期状态）
+    var lastAccessedAt: Date
+    /// 内容哈希（用于重复检测）
+    var contentHash: String?
+    
     init(
         id: UUID = UUID(),
         originalName: String,
@@ -132,7 +156,10 @@ struct ManagedFile: Identifiable, Codable, Transferable {
         summary: String? = nil,
         notes: String? = nil,
         fileSize: Int64 = 0,
-        fileType: String = ""
+        fileType: String = "",
+        lifecycleStage: FileLifecycleStage = .active,
+        lastAccessedAt: Date? = nil,
+        contentHash: String? = nil
     ) {
         self.id = id
         self.originalName = originalName
@@ -149,6 +176,9 @@ struct ManagedFile: Identifiable, Codable, Transferable {
         self.createdAt = Date()
         self.importedAt = Date()
         self.modifiedAt = Date()
+        self.lifecycleStage = category == .archives ? .archived : lifecycleStage
+        self.lastAccessedAt = lastAccessedAt ?? Date()
+        self.contentHash = contentHash
     }
     
     var formattedFileSize: String {
@@ -245,16 +275,16 @@ extension Color {
 // MARK: - Preset Tag Colors
 struct TagColors {
     static let presets: [String] = [
-        "#FF6B6B", // Red
-        "#4ECDC4", // Teal
-        "#45B7D1", // Blue
-        "#96CEB4", // Green
-        "#FFEAA7", // Yellow
-        "#DDA0DD", // Plum
-        "#98D8C8", // Mint
-        "#F7DC6F", // Gold
-        "#BB8FCE", // Purple
-        "#85C1E9", // Sky Blue
+        "#FF3B30", // System Red
+        "#FF9500", // System Orange
+        "#FFCC00", // System Yellow
+        "#28CD41", // System Green
+        "#007AFF", // System Blue
+        "#5856D6", // System Indigo
+        "#AF52DE", // System Purple
+        "#FF2D55", // System Pink
+        "#A2845E", // System Brown
+        "#8E8E93", // System Gray
     ]
     
     static func random() -> String {
@@ -268,8 +298,31 @@ enum RuleConditionField: String, Codable, CaseIterable {
     case fileName = "文件名"
     case fileExtension = "文件扩展名"
     case fileSize = "文件大小(KB)"
-//    case creationDate = "创建日期"
-//    case lastModifiedDate = "修改日期"
+    
+    // Lifecycle-related conditions
+    case lastAccessDays = "未访问天数"
+    case lifecycleStage = "生命周期阶段"
+    case currentCategory = "当前分类"
+    case createdDaysAgo = "创建天数"
+    
+    /// 是否为数值类型条件
+    var isNumeric: Bool {
+        switch self {
+        case .fileSize, .lastAccessDays, .createdDaysAgo:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    /// 适用的操作符
+    var applicableOperators: [RuleOperator] {
+        if isNumeric {
+            return [.equals, .greaterThan, .lessThan]
+        } else {
+            return [.equals, .contains, .startsWith, .endsWith]
+        }
+    }
 }
 
 enum RuleOperator: String, Codable, CaseIterable {
@@ -336,4 +389,118 @@ struct AutoRule: Identifiable, Codable, Hashable {
         self.actions = actions
         self.createdAt = Date()
     }
+}
+
+// MARK: - Preset Rule Templates
+/// 预置规则模板，用户可一键添加
+struct PresetRuleTemplate: Identifiable {
+    let id = UUID()
+    let name: String
+    let description: String
+    let icon: String
+    let rule: AutoRule
+    
+    /// 创建实际规则（生成新 ID）
+    func createRule() -> AutoRule {
+        AutoRule(
+            name: rule.name,
+            isEnabled: true,
+            matchType: rule.matchType,
+            conditions: rule.conditions,
+            actions: rule.actions
+        )
+    }
+}
+
+extension PresetRuleTemplate {
+    /// 所有预置模板
+    static let allTemplates: [PresetRuleTemplate] = [
+        // 1. 过期项目归档
+        PresetRuleTemplate(
+            name: "过期项目自动归档",
+            description: "Projects 中 90 天未访问的文件自动移至 Archives",
+            icon: "archivebox.fill",
+            rule: AutoRule(
+                name: "过期项目自动归档",
+                matchType: .all,
+                conditions: [
+                    RuleCondition(field: .currentCategory, operator: .equals, value: "Projects"),
+                    RuleCondition(field: .lastAccessDays, operator: .greaterThan, value: "90")
+                ],
+                actions: [
+                    RuleAction(type: .move, targetValue: "Archives")
+                ]
+            )
+        ),
+        
+        // 2. 长期未用资源标记
+        PresetRuleTemplate(
+            name: "长期未用资源提醒",
+            description: "Resources 中 180 天未访问的文件添加「待清理」标签",
+            icon: "tag.fill",
+            rule: AutoRule(
+                name: "长期未用资源提醒",
+                matchType: .all,
+                conditions: [
+                    RuleCondition(field: .currentCategory, operator: .equals, value: "Resources"),
+                    RuleCondition(field: .lastAccessDays, operator: .greaterThan, value: "180")
+                ],
+                actions: [
+                    RuleAction(type: .addTag, targetValue: "待清理")
+                ]
+            )
+        ),
+        
+        // 3. 大文件标记
+        PresetRuleTemplate(
+            name: "大文件标记",
+            description: "超过 100MB 的文件添加「大文件」标签",
+            icon: "externaldrive.fill",
+            rule: AutoRule(
+                name: "大文件标记",
+                matchType: .all,
+                conditions: [
+                    RuleCondition(field: .fileSize, operator: .greaterThan, value: "102400") // 100MB in KB
+                ],
+                actions: [
+                    RuleAction(type: .addTag, targetValue: "大文件")
+                ]
+            )
+        ),
+        
+        // 4. 休眠文件提醒
+        PresetRuleTemplate(
+            name: "休眠文件提醒",
+            description: "30-90 天未访问的文件添加「休眠」标签",
+            icon: "moon.fill",
+            rule: AutoRule(
+                name: "休眠文件提醒",
+                matchType: .all,
+                conditions: [
+                    RuleCondition(field: .lastAccessDays, operator: .greaterThan, value: "30"),
+                    RuleCondition(field: .lifecycleStage, operator: .equals, value: "dormant")
+                ],
+                actions: [
+                    RuleAction(type: .addTag, targetValue: "休眠")
+                ]
+            )
+        ),
+        
+        // 5. 过期候选归档建议
+        PresetRuleTemplate(
+            name: "过期文件归档建议",
+            description: "生命周期状态为「待清理」的文件添加建议标签",
+            icon: "exclamationmark.triangle.fill",
+            rule: AutoRule(
+                name: "过期文件归档建议",
+                matchType: .all,
+                conditions: [
+                    RuleCondition(field: .lifecycleStage, operator: .equals, value: "stale")
+                ],
+                actions: [
+                    RuleAction(type: .addTag, targetValue: "建议归档")
+                ]
+            )
+        )
+    ]
 }

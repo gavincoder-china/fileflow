@@ -18,6 +18,7 @@ struct CategoryFileListView: View {
     let onDuplicate: (ManagedFile) -> Void
     let onMove: (ManagedFile) -> Void
     let onDelete: (ManagedFile) -> Void
+    let onOpenReader: (ManagedFile) -> Void
     
     var body: some View {
         Group {
@@ -66,6 +67,9 @@ struct CategoryFileListView: View {
     
     private func fileRow(for file: ManagedFile) -> some View {
         FileListRow(file: file, isSelected: selectedFile?.id == file.id)
+            .onTapGesture(count: 2) {
+                onOpenReader(file)
+            }
             .onTapGesture {
                 selectedFile = file
             }
@@ -95,9 +99,23 @@ struct CategoryFileListView: View {
         }
         
         Button {
+            onOpenReader(file)
+        } label: {
+            Label("全屏阅读", systemImage: "arrow.up.left.and.arrow.down.right")
+        }
+        
+        Button {
             onMove(file)
         } label: {
             Label("移动到...", systemImage: "arrow.right.square")
+        }
+        
+        Button {
+            let link = "fileflow://open?id=\(file.id.uuidString)"
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(link, forType: .string)
+        } label: {
+            Label("复制文件链接", systemImage: "link")
         }
         
         Divider()
@@ -117,12 +135,11 @@ struct FileListRow: View {
     
     var body: some View {
         mainContent
-            .padding(14)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .background(rowBackground)
-            .glass(cornerRadius: 16, material: isSelected ? .regular : .ultraThin, shadowRadius: isHovering ? 6 : 0)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(selectionOverlay)
-            .scaleEffect(isHovering ? 1.01 : 1.0)
-            .animation(.spring(response: 0.3), value: isHovering)
             .onHover { hovering in
                 isHovering = hovering
             }
@@ -131,7 +148,7 @@ struct FileListRow: View {
     
     // Extracted to help compiler
     private var mainContent: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             fileIcon
             fileInfo
             Spacer()
@@ -142,52 +159,56 @@ struct FileListRow: View {
     
     private var fileIcon: some View {
         RichFileIcon(path: file.newPath)
-            .frame(width: 48, height: 48)
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .frame(width: 30, height: 30)
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
     
     private var fileInfo: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: 12) {
             Text(file.newName.isEmpty ? file.originalName : file.newName)
                 .font(.body)
-                .fontWeight(.medium)
-                .foregroundStyle(isSelected ? .white : .primary)
-                .lineLimit(2)
+                .fontWeight(.regular)
+                .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
                 .allowsTightening(true)
+                .frame(minWidth: 120, alignment: .leading)
             
-            HStack(spacing: 8) {
+            // Chips / Metadata
+            HStack(spacing: 6) {
+                // Lifecycle stage badge
+                if file.lifecycleStage != .active {
+                    LifecycleStatusBadge(stage: file.lifecycleStage, showLabel: false, size: .mini)
+                }
+                
                 if let subcategory = file.subcategory {
                     Label(subcategory, systemImage: "folder")
-                        .font(.caption)
-                        .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 
                 ForEach(file.tags.prefix(3)) { tag in
                     Text("#\(tag.name)")
-                        .font(.caption)
-                        .foregroundStyle(isSelected ? .white : tag.swiftUIColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(isSelected ? .white.opacity(0.2) : tag.swiftUIColor.opacity(0.1))
-                        .cornerRadius(4)
+                        .font(.caption2)
+                        .foregroundStyle(tag.swiftUIColor)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(tag.swiftUIColor.opacity(0.1))
+                        .cornerRadius(3)
                 }
-                
-                Text(file.formattedFileSize)
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? Color.white.opacity(0.6) : Color.gray.opacity(0.6))
             }
+            
+            // Size
+            Text(file.formattedFileSize)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
     
     private var fileDate: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(file.importedAt, style: .date)
-                .font(.caption)
-                .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
-            Text(file.importedAt, style: .time)
-                .font(.caption2)
-                .foregroundStyle(isSelected ? Color.white.opacity(0.6) : Color.gray.opacity(0.6))
-        }
+        Text(file.importedAt, style: .date)
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
     
     @ViewBuilder
@@ -197,6 +218,7 @@ struct FileListRow: View {
                 FileFlowManager.shared.revealInFinder(url: URL(fileURLWithPath: file.newPath))
             } label: {
                 Image(systemName: "folder.fill")
+                    .font(.caption)
                     .foregroundStyle(isSelected ? Color.primary : Color.blue.opacity(0.8))
             }
             .buttonStyle(.plain)
@@ -205,16 +227,123 @@ struct FileListRow: View {
     }
     
     private var rowBackground: some View {
-        RoundedRectangle(cornerRadius: 16)
+        RoundedRectangle(cornerRadius: 6)
             .fill(isSelected 
-                ? Color.accentColor.opacity(0.15) // Soft accent tint
-                : (isHovering ? Color.white.opacity(0.08) : Color.clear))
+                ? Color.accentColor.opacity(0.15) // Subtle highlight, not solid
+                : (isHovering ? Color.secondary.opacity(0.08) : Color.clear))
     }
     
     private var selectionOverlay: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1.5)
-            .shadow(color: isSelected ? Color.accentColor.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 0)
-            .allowsHitTesting(false)
+        RoundedRectangle(cornerRadius: 6)
+            .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+    }
+}
+
+// MARK: - Grid View Components
+
+enum FileViewMode: String, CaseIterable {
+    case icons = "图标"
+    case list = "列表"
+    
+    var iconName: String {
+        switch self {
+        case .icons: return "square.grid.2x2"
+        case .list: return "list.bullet"
+        }
+    }
+}
+
+struct GridFileItem: View {
+    let file: ManagedFile
+    let isSelected: Bool
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            // Icon Area
+            ZStack {
+                RichFileIcon(path: file.newPath)
+                    .frame(width: 64, height: 64)
+                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            }
+            .frame(width: 80, height: 80)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovering ? Color.secondary.opacity(0.1) : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1.5)
+            )
+            
+            // Name Area
+            VStack(spacing: 2) {
+                Text(file.newName.isEmpty ? file.originalName : file.newName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                    .frame(height: 32, alignment: .top)
+                
+                if isHovering || isSelected {
+                    Text(file.formattedFileSize)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .transition(.opacity)
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        .frame(width: 100, height: 130)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+struct GridFolderItem: View {
+    let name: String
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            // Icon Area
+            ZStack {
+                Image(systemName: "folder.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 56, height: 56)
+                    .foregroundStyle(.blue)
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+            }
+            .frame(width: 80, height: 80)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isHovering ? Color.blue.opacity(0.1) : Color.clear)
+            )
+            
+            // Name Area
+            Text(name)
+                .font(.caption)
+                .fontWeight(.medium)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.primary)
+                .frame(height: 32, alignment: .top)
+                .padding(.horizontal, 4)
+        }
+        .frame(width: 100, height: 120)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
     }
 }

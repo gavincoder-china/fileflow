@@ -11,10 +11,15 @@ struct FileInspectorPane: View {
     let file: ManagedFile
     let onClose: () -> Void
     let onUpdateTags: ([Tag]) -> Void
+    let onOpenReader: () -> Void
     
     // Local State
     @State private var notes: String = ""
     @State private var isEditingTags = false
+    @State private var isGeneratingCard = false
+    @State private var cardGenerated = false
+    @State private var contextRecommendations: [ContextRecommendation] = []
+    @State private var isLoadingRecommendations = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -112,7 +117,26 @@ struct FileInspectorPane: View {
                     Divider()
                         .padding(.horizontal)
                     
-                    // AI Actions Placeholder
+                    // Actions
+                    VStack(alignment: .leading, spacing: 12) {
+                        Button {
+                            onOpenReader()
+                        } label: {
+                            Label("全屏阅读", systemImage: "arrow.up.left.and.arrow.down.right")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundStyle(Color.accentColor)
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    // AI Actions
                     VStack(alignment: .leading, spacing: 12) {
                         Text("AI 助手")
                             .font(.headline)
@@ -128,8 +152,61 @@ struct FileInspectorPane: View {
                                 .cornerRadius(8)
                         }
                         .buttonStyle(.plain)
+                        
+                        Button {
+                            generateCardForFile()
+                        } label: {
+                            HStack {
+                                if isGeneratingCard {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                        .frame(width: 16, height: 16)
+                                } else if cardGenerated {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Image(systemName: "rectangle.stack.badge.plus")
+                                }
+                                Text(cardGenerated ? "已生成卡片" : "生成知识卡片")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(cardGenerated ? Color.green.opacity(0.1) : Color.purple.opacity(0.1))
+                            .foregroundStyle(cardGenerated ? .green : .purple)
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isGeneratingCard)
                     }
                     .padding(.horizontal, 20)
+                    
+                    // Context Recommendations (相关文件推荐)
+                    if !contextRecommendations.isEmpty || isLoadingRecommendations {
+                        Divider()
+                            .padding(.horizontal)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("相关文件")
+                                    .font(.headline)
+                                if isLoadingRecommendations {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                }
+                            }
+                            
+                            if contextRecommendations.isEmpty && isLoadingRecommendations {
+                                Text("正在分析...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(contextRecommendations.prefix(5)) { rec in
+                                    RecommendationRow(recommendation: rec)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
                 }
                 .padding(.bottom, 40)
             }
@@ -138,6 +215,50 @@ struct FileInspectorPane: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             notes = file.notes ?? ""
+            checkExistingCard()
+        }
+        .task {
+            // 自动更新文件访问时间 (无感生命周期追踪)
+            await DatabaseManager.shared.updateLastAccessedAt(fileId: file.id)
+            await checkExistingCardAsync()
+            await loadContextRecommendations()
+        }
+    }
+    
+    // MARK: - Context Recommendations
+    private func loadContextRecommendations() async {
+        isLoadingRecommendations = true
+        let recommendations = await KnowledgeLinkService.shared.getContextRecommendations(for: file, limit: 5)
+        await MainActor.run {
+            contextRecommendations = recommendations
+            isLoadingRecommendations = false
+        }
+    }
+    
+    // MARK: - Card Generation
+    private func checkExistingCard() {
+        Task {
+            await checkExistingCardAsync()
+        }
+    }
+    
+    private func checkExistingCardAsync() async {
+        let existing = await KnowledgeLinkService.shared.getCard(for: file.id)
+        await MainActor.run {
+            cardGenerated = existing != nil
+        }
+    }
+    
+    private func generateCardForFile() {
+        guard !isGeneratingCard else { return }
+        
+        isGeneratingCard = true
+        Task {
+            let card = await KnowledgeLinkService.shared.generateCardWithAI(for: file)
+            await MainActor.run {
+                isGeneratingCard = false
+                cardGenerated = card != nil
+            }
         }
     }
 }
@@ -161,4 +282,39 @@ struct InfoRow: View {
     }
 }
 
-
+struct RecommendationRow: View {
+    let recommendation: ContextRecommendation
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            // File icon
+            RichFileIcon(path: recommendation.file.newPath)
+                .frame(width: 24, height: 24)
+            
+            // File name
+            VStack(alignment: .leading, spacing: 2) {
+                Text(recommendation.file.displayName)
+                    .font(.caption)
+                    .lineLimit(1)
+                
+                Text(recommendation.reason.rawValue)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            
+            Spacer()
+            
+            // Relevance score
+            Text("\(Int(recommendation.score * 100))%")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(0.03))
+        )
+    }
+}
