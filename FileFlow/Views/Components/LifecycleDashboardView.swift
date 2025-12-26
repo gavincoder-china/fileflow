@@ -51,45 +51,27 @@ struct LifecycleDashboardView: View {
     
     // MARK: - Tab Selector
     private var tabSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                tabButton(title: "生命周期", icon: "arrow.triangle.2.circlepath", index: 0, color: .blue)
-                tabButton(title: "标签热力图", icon: "chart.bar.fill", index: 1, color: .green)
-                tabButton(title: "智能合并", icon: "arrow.triangle.merge", index: 2, color: .orange)
-                tabButton(title: "存储分析", icon: "externaldrive.fill", index: 3, color: .purple)
+        HStack {
+            Picker("", selection: $selectedTab) {
+                Text("生命周期").tag(0)
+                Text("标签热力图").tag(1)
+                Text("智能合并").tag(2)
+                Text("存储分析").tag(3)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 600)
+            
+            Spacer()
         }
-    }
-    
-    private func tabButton(title: String, icon: String, index: Int, color: Color) -> some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedTab = index
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(selectedTab == index ? color.opacity(0.15) : Color.clear)
-            )
-            .foregroundStyle(selectedTab == index ? color : .secondary)
-        }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(.ultraThinMaterial)
     }
     
     // MARK: - Lifecycle Content
     private var lifecycleContent: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 32) {
                 // Header
                 if !isEmbedded {
                     headerView
@@ -98,8 +80,12 @@ struct LifecycleDashboardView: View {
                 // Stats Overview
                 statsOverview
                 
+                Divider()
+                
                 // Distribution Chart
                 distributionChart
+                
+                Divider()
                 
                 // Recent Transitions
                 recentTransitionsCard
@@ -107,7 +93,7 @@ struct LifecycleDashboardView: View {
                 // Actions
                 actionButtons
             }
-            .padding(24)
+            .padding(32)
         }
     }
     
@@ -116,9 +102,9 @@ struct LifecycleDashboardView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("📊 生命周期仪表盘")
-                    .font(.title.bold())
+                    .font(.title2.bold())
                 Text("文件状态分布与流转概览")
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             
@@ -135,38 +121,43 @@ struct LifecycleDashboardView: View {
     
     // MARK: - Stats Overview
     private var statsOverview: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 24) {
             ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     ZStack {
                         Circle()
-                            .fill(stage.color.opacity(0.15))
-                            .frame(width: 60, height: 60)
+                            .fill(stage.color.opacity(0.1))
+                            .frame(width: 56, height: 56)
                         
                         Image(systemName: stage.icon)
                             .font(.title2)
                             .foregroundStyle(stage.color)
                     }
                     
-                    Text("\(lifecycleStats[stage] ?? 0)")
-                        .font(.title2.bold())
-                    
-                    Text(stage.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(spacing: 4) {
+                        Text("\(lifecycleStats[stage] ?? 0)")
+                            .font(.title.bold())
+                        
+                        Text(stage.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     
                     if totalFiles > 0 {
                         let percentage = Double(lifecycleStats[stage] ?? 0) / Double(totalFiles) * 100
                         Text(String(format: "%.1f%%", percentage))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.secondary.opacity(0.1)))
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(16)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.primary.opacity(0.03))
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.secondary.opacity(0.1), lineWidth: 1)
                 )
             }
         }
@@ -174,40 +165,41 @@ struct LifecycleDashboardView: View {
     
     // MARK: - Distribution Chart
     private var distributionChart: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("状态分布")
                 .font(.headline)
             
             if totalFiles > 0 {
-                GeometryReader { geo in
-                    HStack(spacing: 2) {
-                        ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
-                            let count = lifecycleStats[stage] ?? 0
-                            let width = (CGFloat(count) / CGFloat(totalFiles)) * geo.size.width
-                            
-                            if count > 0 {
-                                Rectangle()
-                                    .fill(stage.color)
-                                    .frame(width: max(width, 4))
-                                    .cornerRadius(4)
+                VStack(spacing: 12) {
+                    GeometryReader { geo in
+                        HStack(spacing: 2) {
+                            ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
+                                let count = lifecycleStats[stage] ?? 0
+                                let width = (CGFloat(count) / CGFloat(totalFiles)) * geo.size.width
+                                
+                                if count > 0 {
+                                    Rectangle()
+                                        .fill(stage.color.gradient)
+                                        .frame(width: max(width, 4))
+                                }
                             }
                         }
                     }
-                }
-                .frame(height: 24)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                
-                // Legend
-                HStack(spacing: 16) {
-                    ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
-                        if (lifecycleStats[stage] ?? 0) > 0 {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(stage.color)
-                                    .frame(width: 8, height: 8)
-                                Text(stage.displayName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    .frame(height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    
+                    // Legend
+                    HStack(spacing: 20) {
+                        ForEach(FileLifecycleStage.allCases, id: \.self) { stage in
+                            if (lifecycleStats[stage] ?? 0) > 0 {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(stage.color)
+                                        .frame(width: 6, height: 6)
+                                    Text("\(stage.displayName): \(lifecycleStats[stage] ?? 0)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -218,16 +210,11 @@ struct LifecycleDashboardView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.primary.opacity(0.03))
-        )
     }
     
     // MARK: - Recent Transitions
     private var recentTransitionsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("最近流转")
                     .font(.headline)
@@ -244,41 +231,46 @@ struct LifecycleDashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
             } else {
-                ForEach(recentTransitions.prefix(5)) { transition in
-                    HStack(spacing: 12) {
-                        Image(systemName: transition.reason.icon)
-                            .foregroundStyle(transition.toCategory.color)
-                            .frame(width: 24)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(transition.fileName)
-                                .font(.body)
-                                .lineLimit(1)
+                VStack(spacing: 0) {
+                    ForEach(recentTransitions.prefix(5)) { transition in
+                        HStack(spacing: 16) {
+                            Image(systemName: transition.reason.icon)
+                                .foregroundStyle(transition.toCategory.color)
+                                .frame(width: 24)
                             
-                            Text("\(transition.fromCategory.displayName) → \(transition.toCategory.displayName)")
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(transition.fileName)
+                                    .font(.body)
+                                    .lineLimit(1)
+                                
+                                HStack(spacing: 6) {
+                                    Text(transition.fromCategory.displayName)
+                                        .foregroundStyle(.secondary)
+                                    Image(systemName: "arrow.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                    Text(transition.toCategory.displayName)
+                                        .foregroundStyle(transition.toCategory.color)
+                                }
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Text(transition.formattedDate)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
+                        .padding(.vertical, 12)
                         
-                        Spacer()
-                        
-                        Text(transition.formattedDate)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.vertical, 6)
-                    
-                    if transition.id != recentTransitions.prefix(5).last?.id {
-                        Divider()
+                        if transition.id != recentTransitions.prefix(5).last?.id {
+                            Divider()
+                        }
                     }
                 }
+                .padding(.horizontal, 4)
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.primary.opacity(0.03))
-        )
     }
     
     // MARK: - Action Buttons

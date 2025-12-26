@@ -89,38 +89,29 @@ struct AuroraBackground: View {
 struct SidebarSelectionModifier: ViewModifier {
     var isSelected: Bool
     var color: Color
+    @State private var isHovered = false
     
     func body(content: Content) -> some View {
         content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background {
                 if isSelected {
-                    ZStack {
-                        // Smooth Gradient Fill
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(
-                                LinearGradient(
-                                    colors: [color.opacity(0.8), color],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        
-                        // Glass Highlight
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-                    }
-                    .transition(.scale(scale: 0.95).combined(with: .opacity))
-                    .shadow(color: color.opacity(0.3), radius: 8, x: 0, y: 4)
-                } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.primary.opacity(0.02))
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(color)
+                        .shadow(color: color.opacity(0.15), radius: 2, x: 0, y: 1) // Very subtle shadow
+                } else if isHovered {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.primary.opacity(0.05))
                 }
             }
             .foregroundStyle(isSelected ? .white : .primary)
             .contentShape(Rectangle())
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+            .onHover { hover in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovered = hover
+                }
+            }
     }
 }
 

@@ -44,11 +44,26 @@ struct TagGraphView: View {
     ]
     
     var body: some View {
-        HStack(spacing: 0) {
+        ZStack {
+            // Main Graph
             graphArea
             
+            // Overlays
+            VStack {
+                Spacer()
+                HStack {
+                    controlsToolbar
+                        .padding(.bottom, 20)
+                }
+            }
+            
+            // Detail Sidebar (Inspector)
             if showingDetail, let tag = selectedTag {
-                detailSidebar(for: tag)
+                HStack {
+                    Spacer()
+                    inspectorPanel(for: tag)
+                        .transition(.move(edge: .trailing))
+                }
             }
         }
         .onAppear {
@@ -67,7 +82,7 @@ struct TagGraphView: View {
     private var graphArea: some View {
         GeometryReader { geometry in
             ZStack {
-                // 背景
+                // Background
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -78,18 +93,8 @@ struct TagGraphView: View {
                         }
                     }
                 
-                // 图谱画布
+                // Canvas
                 graphCanvas(size: geometry.size)
-                
-                // 控制按钮
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        controlButtons
-                    }
-                }
-                .padding(24)
             }
             .gesture(
                 DragGesture(minimumDistance: 5)
@@ -121,31 +126,22 @@ struct TagGraphView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    // MARK: - Control Buttons
+    // MARK: - Controls Toolbar
     
-    private var controlButtons: some View {
-        VStack(spacing: 12) {
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    scale = min(3.0, scale + 0.2)
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.title3)
-                    .frame(width: 40, height: 40)
-            }
-            .buttonStyle(GraphControlButtonStyle())
-            
+    private var controlsToolbar: some View {
+        HStack(spacing: 0) {
             Button {
                 withAnimation(.spring(response: 0.3)) {
                     scale = max(0.3, scale - 0.2)
                 }
             } label: {
                 Image(systemName: "minus")
-                    .font(.title3)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 32, height: 28)
             }
-            .buttonStyle(GraphControlButtonStyle())
+            .buttonStyle(.plain)
+            
+            Divider()
+                .frame(height: 16)
             
             Button {
                 withAnimation(.spring(response: 0.4)) {
@@ -155,30 +151,50 @@ struct TagGraphView: View {
                 }
             } label: {
                 Image(systemName: "arrow.counterclockwise")
-                    .font(.title3)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 32, height: 28)
             }
-            .buttonStyle(GraphControlButtonStyle())
+            .buttonStyle(.plain)
+            
+            Divider()
+                .frame(height: 16)
+            
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    scale = min(3.0, scale + 0.2)
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 32, height: 28)
+            }
+            .buttonStyle(.plain)
         }
+        .padding(4)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+        .overlay(
+            Capsule()
+                .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+        )
     }
     
     // MARK: - Graph Canvas
     
     private func graphCanvas(size: CGSize) -> some View {
         Canvas { context, canvasSize in
-            // 应用缩放和平移
+            // Apply scale and offset
             context.scaleBy(x: scale, y: scale)
             context.translateBy(x: offset.width / scale, y: offset.height / scale)
             
-            // 绘制连接线（带标签）
+            // Draw links
             drawLinks(context: &context)
             
-            // 绘制节点
+            // Draw nodes
             drawNodes(context: &context)
         }
     }
     
-    // MARK: - Draw Links
+    // MARK: - Drawing Helpers
     
     private func drawLinks(context: inout GraphicsContext) {
         for link in links {
@@ -190,7 +206,7 @@ struct TagGraphView: View {
             let isHoverRelated = hoveredNodeId != nil &&
                 (link.source == hoveredNodeId || link.target == hoveredNodeId)
             
-            // 计算透明度
+            // Opacity calculation
             var opacity: Double = 0.3
             if selectedNodeId != nil {
                 opacity = isRelated ? 0.8 : 0.05
@@ -199,7 +215,7 @@ struct TagGraphView: View {
                 opacity = max(opacity, 0.6)
             }
             
-            // 计算起点和终点（从节点边缘开始）
+            // Calculate start and end points
             let dx = endNode.position.x - startNode.position.x
             let dy = endNode.position.y - startNode.position.y
             let dist = sqrt(dx * dx + dy * dy)
@@ -215,7 +231,7 @@ struct TagGraphView: View {
                 y: endNode.position.y - (dy / dist) * endNode.radius
             )
             
-            // 绘制直线（更简洁）
+            // Draw line
             var path = Path()
             path.move(to: startPoint)
             path.addLine(to: endPoint)
@@ -225,7 +241,7 @@ struct TagGraphView: View {
             
             context.stroke(path, with: .color(lineColor), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
             
-            // 在连接线中间绘制关系权重（如果权重大于1）
+            // Draw weight label if significant
             if link.weight > 1 && (isRelated || isHoverRelated || opacity > 0.2) {
                 let midPoint = CGPoint(
                     x: (startPoint.x + endPoint.x) / 2,
@@ -241,10 +257,8 @@ struct TagGraphView: View {
         }
     }
     
-    // MARK: - Draw Nodes
-    
     private func drawNodes(context: inout GraphicsContext) {
-        // 按大小排序，先画小的（这样大的会在上面）
+        // Sort by radius so smaller nodes are top
         let sortedNodes = nodes.sorted { $0.radius < $1.radius }
         
         for node in sortedNodes {
@@ -256,7 +270,7 @@ struct TagGraphView: View {
                 ($0.source == node.id && $0.target == selectedNodeId)
             }
             
-            // 计算透明度
+            // Opacity
             var baseOpacity: Double = 1.0
             if selectedNodeId != nil && !isSelected && !isRelated {
                 baseOpacity = 0.15
@@ -265,7 +279,7 @@ struct TagGraphView: View {
                 baseOpacity = 1.0
             }
             
-            // 缩放效果
+            // Scale
             let scaleFactor: CGFloat = isHovered ? 1.15 : (isSelected ? 1.1 : 1.0)
             let currentRadius = node.radius * scaleFactor
             
@@ -276,7 +290,7 @@ struct TagGraphView: View {
                 height: currentRadius * 2
             )
             
-            // 绘制阴影
+            // Shadow
             if isHovered || isSelected {
                 context.drawLayer { shadowContext in
                     shadowContext.addFilter(.shadow(color: node.color.opacity(0.5), radius: 15))
@@ -284,7 +298,7 @@ struct TagGraphView: View {
                 }
             }
             
-            // 绘制节点圆形
+            // Gradient fill
             let gradient = GraphicsContext.Shading.radialGradient(
                 Gradient(colors: [
                     node.color.opacity(baseOpacity),
@@ -297,7 +311,7 @@ struct TagGraphView: View {
             
             context.fill(Path(ellipseIn: circleRect), with: gradient)
             
-            // 高亮边框
+            // Highlight stroke
             if isSelected || isHovered {
                 context.stroke(
                     Path(ellipseIn: circleRect),
@@ -306,14 +320,10 @@ struct TagGraphView: View {
                 )
             }
             
-            // 节点内文字（如果节点足够大）
+            // Node Text
             if currentRadius >= 20 || isSelected || isHovered {
                 let textOpacity = baseOpacity
-                
-                // 根据背景颜色选择文字颜色
                 let textColor: Color = getContrastTextColor(for: node.color)
-                
-                // 计算合适的字体大小
                 let fontSize = min(currentRadius * 0.45, 16.0)
                 let displayName = truncateName(node.name, maxLength: Int(currentRadius / 4))
                 
@@ -324,7 +334,7 @@ struct TagGraphView: View {
                 context.draw(text, at: node.position, anchor: .center)
             }
             
-            // 小节点：在外部显示名称
+            // Name for small nodes
             if currentRadius < 20 && (isHovered || isSelected || isRelated) {
                 let textColor: Color = colorScheme == .dark ? .white : .black
                 let text = Text(node.name)
@@ -336,10 +346,7 @@ struct TagGraphView: View {
         }
     }
     
-    // MARK: - Helper Functions
-    
     private func getContrastTextColor(for backgroundColor: Color) -> Color {
-        // 简单的亮度检测
         let components = NSColor(backgroundColor).cgColor.components ?? [0, 0, 0]
         let brightness = (components[0] * 299 + components[1] * 587 + components[2] * 114) / 1000
         return brightness > 0.5 ? .black : .white
@@ -372,33 +379,27 @@ struct TagGraphView: View {
             }
         }
         
-        // 处理点击
         if hoveredNodeId != nil {
             NSCursor.pointingHand.set()
         } else {
-            NSCursor.arrow.set()
+            NSCursor.arrow.set() // Assuming default is arrow
         }
     }
+
+    // MARK: - Inspector Panel
     
-    // MARK: - Detail Sidebar
-    
-    private func detailSidebar(for tag: Tag) -> some View {
+    private func inspectorPanel(for tag: Tag) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 12) {
-                        Circle()
-                            .fill(tag.swiftUIColor)
-                            .frame(width: 20, height: 20)
-                            .shadow(color: tag.swiftUIColor.opacity(0.5), radius: 6)
-                        
-                        Text(tag.name)
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                    }
-                    Text("\(associatedFiles.count) 个关联文件")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(tag.swiftUIColor)
+                        .frame(width: 16, height: 16)
+                        .shadow(color: tag.swiftUIColor.opacity(0.5), radius: 4)
+                    
+                    Text(tag.name)
+                        .font(.headline)
                 }
                 
                 Spacer()
@@ -409,38 +410,61 @@ struct TagGraphView: View {
                         selectedNodeId = nil
                     }
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
+                    Image(systemName: "xmark")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
+                        .padding(4)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(24)
+            .padding(16)
             .background(.ultraThinMaterial)
+            
+            Divider()
+            
+            // Stats
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("\(associatedFiles.count)")
+                        .font(.title2.bold())
+                    Text("关联文件")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(16)
             
             Divider()
             
             // File List
             if associatedFiles.isEmpty {
-                ContentUnavailableView("暂无关联文件", systemImage: "doc.text", description: Text("此标签尚未关联任何文件"))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ContentUnavailableView("暂无关联", systemImage: "doc.text")
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(associatedFiles) { file in
-                            FileRow(file: file)
-                        }
+                List {
+                    ForEach(associatedFiles) { file in
+                        FileRow(file: file)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
-                    .padding(16)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
-        .frame(width: 360)
+        .frame(width: 300)
+        .frame(maxHeight: .infinity)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.15), radius: 20)
-        .padding(16)
-        .transition(.move(edge: .trailing).combined(with: .opacity))
+        .overlay(
+            Rectangle()
+                .frame(width: 1)
+                .foregroundStyle(Color.secondary.opacity(0.1))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 10, x: -2, y: 0)
     }
     
     // MARK: - File Row

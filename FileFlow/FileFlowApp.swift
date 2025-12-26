@@ -254,6 +254,7 @@ class AppState: ObservableObject {
     
     // 背景壁纸设置
     @Published var wallpaperURL: URL?
+    @Published var isFetchingWallpaper = false
     
     @AppStorage("useBingWallpaper") var useBingWallpaper = false {
         willSet { objectWillChange.send() }
@@ -359,7 +360,10 @@ class AppState: ObservableObject {
     
     func fetchDailyWallpaper(index: Int? = nil) {
         let fetchIndex = index ?? wallpaperIndex
+        
         Task {
+            await MainActor.run { self.isFetchingWallpaper = true }
+            
             do {
                 let url = try await WallpaperService.shared.fetchDailyWallpaperURL(index: fetchIndex)
                 await MainActor.run {
@@ -367,9 +371,11 @@ class AppState: ObservableObject {
                     if let idx = index {
                         self.wallpaperIndex = idx
                     }
+                    self.isFetchingWallpaper = false
                 }
             } catch {
                 Logger.error("Failed to fetch wallpaper at index \(fetchIndex): \(error)")
+                await MainActor.run { self.isFetchingWallpaper = false }
             }
         }
     }

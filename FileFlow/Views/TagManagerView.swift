@@ -48,96 +48,161 @@ struct TagManagerView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            headerView
-            
-            // Search & Filter
-            searchAndFilterBar
+            // Header & Search Area
+            VStack(spacing: 16) {
+                // Top Action Bar
+                HStack {
+                    Text("标签管理")
+                        .font(.title2.bold())
+                    
+                    Spacer()
+                    
+                    // Merge Suggestions
+                    Button {
+                        showingMergeSuggestions = true
+                    } label: {
+                        Label("合并相似", systemImage: "arrow.triangle.merge")
+                    }
+                    .controlSize(.regular)
+                    
+                    // Add Tag
+                    Button {
+                        showingAddTag = true
+                    } label: {
+                        Label("新建标签", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                
+                // Search & Filter
+                HStack(spacing: 12) {
+                    // Search Field
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("搜索标签...", text: $searchText)
+                            .textFieldStyle(.plain)
+                        if !searchText.isEmpty {
+                            Button { searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(8)
+                    
+                    // Filter Divider
+                    Divider().frame(height: 20)
+                    
+                    // Color Filters
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            Button { selectedColorFilter = nil } label: {
+                                Text("全部")
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(selectedColorFilter == nil ? Color.secondary.opacity(0.2) : Color.clear)
+                                    .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            ForEach(AddTagSheet.defaultColors, id: \.self) { color in
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 16, height: 16)
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(selectedColorFilter == color ? Color.primary.opacity(0.5) : .clear, lineWidth: 2)
+                                    )
+                                    .onTapGesture {
+                                        selectedColorFilter = (selectedColorFilter == color) ? nil : color
+                                    }
+                                    .padding(2)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+                
+                Divider()
+            }
+            .background(.ultraThinMaterial)
             
             // Content
             ScrollView {
-                VStack(alignment: .leading, spacing: 32) {
+                VStack(alignment: .leading, spacing: 24) {
                     
-                    // Favorites Section (Only if no search/filter active, or matches exist)
+                    // Favorites Section
                     if searchText.isEmpty && selectedColorFilter == nil && !favoriteTags.isEmpty {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Label("常用标签", systemImage: "star.fill")
-                                .font(.title3.bold())
-                                .foregroundStyle(.yellow)
-                                .padding(.horizontal, 4)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "star.fill").foregroundStyle(.yellow)
+                                Text("常用标签").font(.headline)
+                            }
+                            .padding(.horizontal, 24)
                             
-                            FlowLayout(spacing: 12) {
+                            FlowLayout(spacing: 8) {
                                 ForEach(favoriteTags) { tag in
                                     TagManagerChip(
                                         tag: tag,
-                                        isFavoriteSection: true,
+                                        isFavorite: true,
                                         onToggleFavorite: { toggleFavorite(tag) },
                                         onRename: { startRename(tag) },
                                         onDelete: { confirmDelete(tag) }
                                     )
                                 }
                             }
+                            .padding(.horizontal, 24)
                         }
-                        .padding(.horizontal, 32)
-                        
-                         Divider()
-                            .padding(.horizontal, 32)
-                            .opacity(0.5)
                     }
                     
-                    // Main Tags Section
-                    VStack(alignment: .leading, spacing: 16) {
+                    // All Tags Section
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Label(
-                                searchText.isEmpty && selectedColorFilter == nil ? "所有标签" : "搜索结果",
-                                systemImage: "tag.fill"
-                            )
-                            .font(.title3.bold())
-                            .foregroundStyle(.primary)
-                            
+                            Text(searchText.isEmpty && selectedColorFilter == nil ? "所有标签" : "搜索结果")
+                                .font(.headline)
                             Spacer()
-                            
                             Text("\(filteredTags.count) 个")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, 24)
                         
                         if filteredTags.isEmpty {
                             ContentUnavailableView(
                                 searchText.isEmpty && selectedColorFilter == nil ? "暂无标签" : "未找到标签",
-                                systemImage: "tag.slash",
-                                description: Text("尝试其他条件或新建标签")
+                                systemImage: "tag.slash"
                             )
-                            .frame(height: 150)
                         } else {
-                            FlowLayout(spacing: 12) {
+                            FlowLayout(spacing: 8) {
                                 ForEach(filteredTags) { tag in
                                     TagManagerChip(
                                         tag: tag,
-                                        isFavoriteSection: false,
+                                        isFavorite: false,
                                         onToggleFavorite: { toggleFavorite(tag) },
                                         onRename: { startRename(tag) },
                                         onDelete: { confirmDelete(tag) }
                                     )
                                 }
                             }
+                            .padding(.horizontal, 24)
                         }
                     }
-                    .padding(.horizontal, 32)
                 }
                 .padding(.vertical, 24)
             }
         }
         .overlay {
             if isLoading {
-                ZStack {
-                    Color.black.opacity(0.2)
-                    ProgressView()
-                        .padding(24)
-                        .background(.regularMaterial)
-                        .cornerRadius(16)
-                }
+                ProgressView().controlSize(.large)
             }
         }
         // Sheets & Alerts
@@ -176,165 +241,9 @@ struct TagManagerView: View {
         }
     }
     
-    // MARK: - Subviews
-    
-    private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("标签管理")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("管理所有标签，支持收藏与筛选")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            
-            // Settings Menu
-            Menu {
-                Toggle(isOn: Binding(
-                    get: { appState.sidebarShowFavorites },
-                    set: { newValue in
-                        appState.sidebarShowFavorites = newValue
-                        appState.refreshData()
-                    }
-                )) {
-                    Label("侧边栏显示收藏", systemImage: "star.fill")
-                }
-                
-                Divider()
-                
-                Text("最热标签数量: \(appState.sidebarTopTagsCount)")
-                Stepper(value: Binding(
-                    get: { appState.sidebarTopTagsCount },
-                    set: { newValue in
-                        appState.sidebarTopTagsCount = newValue
-                        appState.refreshData()
-                    }
-                ), in: 5...50, step: 5) {
-                    Text("调整数量")
-                }
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .padding(8)
-                    .background(.regularMaterial)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.secondary.opacity(0.2), lineWidth: 1))
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            
-            // Merge Suggestions Button
-            mergeSuggestionsButton
-            
-            Button {
-                showingAddTag = true
-            } label: {
-                Label("新建标签", systemImage: "plus")
-                    .font(.headline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .shadow(color: .blue.opacity(0.3), radius: 5, y: 2)
-        }
-        .padding(.horizontal, 32)
-        .padding(.top, 32)
-        .padding(.bottom, 20)
-    }
-    
-    // MARK: - Merge Suggestions Button
-    private var mergeSuggestionsButton: some View {
-        Button {
-            showingMergeSuggestions = true
-        } label: {
-            Label("合并相似", systemImage: "arrow.triangle.merge")
-                .font(.headline)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-    }
-    
-    // Removed sidebarConfigSection
-    
-    private var searchAndFilterBar: some View {
-        VStack(spacing: 12) {
-            // Search Bar - Modern & Minimal
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                
-                TextField("搜索标签...", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.body)
-                
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                            .font(.title3)
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                }
-            }
-            .padding(14)
-            .background(.background) // Use system background for cleaner look? Or Material?
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-            )
-            
-            // Color Filter Rows
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    // "All" Button
-                    FilterChip(
-                        title: "全部",
-                        color: nil,
-                        isSelected: selectedColorFilter == nil,
-                        action: { selectedColorFilter = nil }
-                    )
-                    
-                    // Colors
-                    ForEach(AddTagSheet.defaultColors, id: \.self) { color in
-                        FilterChip(
-                            title: "",
-                            color: color,
-                            isSelected: selectedColorFilter == color,
-                            action: {
-                                if selectedColorFilter == color {
-                                    selectedColorFilter = nil
-                                } else {
-                                    selectedColorFilter = color
-                                }
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 4) // Space for shadow
-            }
-        }
-        .padding(.horizontal, 32)
-        .padding(.bottom, 10)
-    }
-    
     // MARK: - Actions
     
     private func toggleFavorite(_ tag: Tag) {
-        // Optimistic UI update could happen here, but since efficient, waiting for DB is fine
-        // provided we force a refresh.
         Task {
             await DatabaseManager.shared.toggleTagFavorite(tag)
             appState.refreshData()
@@ -393,53 +302,10 @@ struct TagManagerView: View {
     }
 }
 
-// MARK: - Filter Chip
-struct FilterChip: View {
-    let title: String
-    let color: Color?
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let color = color {
-                    Circle()
-                        .fill(color)
-                        .frame(width: 14, height: 14)
-                        .shadow(color: color.opacity(0.4), radius: 2)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                } else {
-                    Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                }
-            }
-            .padding(.horizontal, color == nil ? 12 : 8)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(isSelected ? (color ?? .blue).opacity(color == nil ? 1.0 : 0.2) : Color.primary.opacity(0.04))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? (color ?? .blue) : Color.primary.opacity(0.08), lineWidth: isSelected ? 1.2 : 1)
-            )
-            .foregroundStyle(isSelected && color == nil ? .white : .primary)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-
-
-// MARK: - Tag Manager Chip (Card Style)
+// MARK: - Tag Manager Chip (Cleaner Token Style)
 struct TagManagerChip: View {
     let tag: Tag
-    let isFavoriteSection: Bool
+    let isFavorite: Bool
     let onToggleFavorite: () -> Void
     let onRename: () -> Void
     let onDelete: () -> Void
@@ -447,62 +313,43 @@ struct TagManagerChip: View {
     @State private var isHovering = false
     
     var body: some View {
-        HStack(spacing: 8) {
-            // Color dot with glow
+        HStack(spacing: 6) {
             Circle()
-                .fill(tag.swiftUIColor.gradient)
-                .frame(width: 12, height: 12)
-                .shadow(color: tag.swiftUIColor.opacity(0.6), radius: 4)
+                .fill(tag.swiftUIColor)
+                .frame(width: 8, height: 8)
             
-            // Name
             Text(tag.name)
-                .font(.system(size: isFavoriteSection ? 15 : 14, weight: isFavoriteSection ? .semibold : .medium))
-                .foregroundStyle(.primary)
+                .font(.system(size: 13))
                 .lineLimit(1)
             
-            // File count badge (only if normal tag)
-            if !isFavoriteSection {
+            if !isFavorite && tag.usageCount > 0 {
                 Text("\(tag.usageCount)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(tag.swiftUIColor.opacity(0.8))
-                    .cornerRadius(6)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 2)
             }
             
-            // Inline favorite button (always visible when hovering or favorited)
             if isHovering || tag.isFavorite {
                 Button(action: onToggleFavorite) {
                     Image(systemName: tag.isFavorite ? "star.fill" : "star")
-                        .font(.system(size: 12))
-                        .foregroundStyle(tag.isFavorite ? .yellow : .secondary.opacity(0.5))
+                        .font(.caption2)
+                        .foregroundStyle(tag.isFavorite ? .yellow : .secondary)
                 }
                 .buttonStyle(.plain)
-                .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.horizontal, isFavoriteSection ? 16 : 14)
-        .padding(.vertical, isFavoriteSection ? 12 : 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            // Use proper frosted glass effect
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.black.opacity(isHovering ? 0.08 : 0.03), radius: isHovering ? 6 : 2, y: isHovering ? 3 : 1)
+            Capsule()
+                .fill(isHovering ? Color.secondary.opacity(0.15) : Color.secondary.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    isHovering ? tag.swiftUIColor.opacity(0.6) : .white.opacity(0.15),
-                    lineWidth: 1
-                )
+            Capsule()
+                .strokeBorder(isHovering ? Color.secondary.opacity(0.2) : .clear, lineWidth: 1)
         )
-        .scaleEffect(isHovering ? 1.03 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-        .animation(.spring(response: 0.3), value: tag.isFavorite)
-        .onHover { hovering in
-            isHovering = hovering
-        }
+        .animation(.easeInOut(duration: 0.2), value: isHovering)
+        .onHover { hover in isHovering = hover }
         .contextMenu {
             Button(action: onToggleFavorite) {
                 Label(tag.isFavorite ? "取消收藏" : "收藏", systemImage: tag.isFavorite ? "star.slash" : "star.fill")

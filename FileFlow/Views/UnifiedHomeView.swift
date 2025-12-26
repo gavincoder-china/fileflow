@@ -75,28 +75,28 @@ struct UnifiedHomeView: View {
                         
 
                     }
-                    .padding(.horizontal, 40)
-                    .padding(.top, 24)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
                     
                     // MARK: - Action Items Banner
                     if !actionItems.isEmpty {
                         ActionItemsBanner(items: actionItems, onAction: handleActionItem)
-                            .padding(.horizontal, 40)
+                            .padding(.horizontal, 24)
                     }
                     
                     // MARK: - Main Content Grid
-                    HStack(alignment: .top, spacing: 24) {
+                    HStack(alignment: .top, spacing: 20) {
                         // Main content (Files + Knowledge Links)
                         dashboardLeftContent
                         
                         // Right sidebar (Analytics) - only show if there's room
                         dashboardRightContent
-                            .frame(width: 280)
+                            .frame(width: 260) // Slightly reduced width
                             .layoutPriority(-1) // Lower priority, can be compressed
                     }
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, 24)
                 }
-                .padding(.bottom, 60)
+                .padding(.bottom, 40)
             }
         .task {
             await loadDashboardData()
@@ -324,8 +324,12 @@ struct HealthScoreMiniCard: View {
             }
         }
         .padding(20)
-        .background(.ultraThinMaterial)
-        .cornerRadius(24)
+        .background(.regularMaterial) // Updated to regular material
+        .cornerRadius(16) // Updated radius
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
     }
 }
 
@@ -380,8 +384,12 @@ struct ActionItemsBanner: View {
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
+        .background(.regularMaterial) // Updated material
+        .cornerRadius(12) // Updated radius
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
     }
 }
 
@@ -399,10 +407,9 @@ struct AnalyticsDashboardCard: View {
         VStack(alignment: .leading, spacing: 20) {
             // Title
             HStack {
-                Image(systemName: "chart.pie.fill")
-                    .foregroundStyle(.purple)
-                Text("存储分析")
+                Label("存储分析", systemImage: "chart.pie.fill")
                     .font(.headline)
+                    .foregroundStyle(.primary) // Standard color
                 Spacer()
                 
                 Button(action: { showTreemap = true }) {
@@ -454,17 +461,12 @@ struct AnalyticsDashboardCard: View {
                                     Rectangle()
                                         .fill(stage.color)
                                         .frame(width: max(width, 4))
-                                        .overlay(
-                                            Rectangle()
-                                                .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
-                                        )
                                 }
                             }
                         }
                     }
-                    .frame(height: 12)
+                    .frame(height: 8) // Thinner bar
                     .cornerRadius(4)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
                     
                     // Legend
                     HStack(spacing: 8) {
@@ -505,7 +507,7 @@ struct AnalyticsDashboardCard: View {
                                     .fill(cat.color.opacity(0.3))
                                     .frame(width: max(width, 4))
                             }
-                            .frame(height: 8)
+                            .frame(height: 6) // Thinner bars
                             
                             Text("\(count)")
                                 .font(.caption.monospacedDigit())
@@ -516,11 +518,11 @@ struct AnalyticsDashboardCard: View {
             }
         }
         .padding(20)
-        .background(.ultraThinMaterial)
-        .cornerRadius(24)
+        .background(.regularMaterial) // Updated material
+        .cornerRadius(16) // Updated radius
         .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
     }
 }
@@ -538,14 +540,13 @@ struct KnowledgeCardReviewSheet: View {
             }
             .padding()
             
-            // Placeholder - would embed actual card review UI
             ContentUnavailableView("复习功能", systemImage: "book.fill", description: Text("知识卡片复习界面"))
         }
         .frame(minWidth: 600, minHeight: 400)
     }
 }
 
-// MARK: - Preserved Components
+// MARK: - Preserved Components (Refactored)
 
 struct HeroSearchBar: View {
     @Binding var searchText: String
@@ -557,49 +558,49 @@ struct HeroSearchBar: View {
     @FocusState private var isFocused: Bool
     
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: isTargeted ? "arrow.down.doc.fill" : "magnifyingglass")
-                .font(.system(size: 24))
-                .foregroundStyle(isTargeted ? .blue : .secondary)
-                // 移除 symbolEffect 减少性能开销
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 20))
+                .foregroundStyle(.secondary)
             
-            TextField(isTargeted ? "松手上传文件..." : "搜索文件、标签或拖拽上传...", text: $searchText)
+            TextField("搜索文件、标签或拖拽上传...", text: $searchText)
                 .font(.title3)
                 .textFieldStyle(.plain)
                 .focused($isFocused)
                 .onSubmit(onCommit)
             
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            
             Button(action: onUpload) {
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.blue.gradient))
-                    .shadow(color: .blue.opacity(0.3), radius: 5)
+                    .frame(width: 32, height: 32)
+                    .background(Color.accentColor.gradient) // Standard accent
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .help("上传文件")
         }
-        .padding(20)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.regularMaterial)
-                .opacity(isTargeted ? 0 : 1)
-        )
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.blue.opacity(0.15))
-                .opacity(isTargeted ? 1 : 0)
-        )
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .shadow(color: isTargeted ? .blue.opacity(0.5) : .black.opacity(0.12), radius: isTargeted ? 30 : 20, x: 0, y: 10)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.regularMaterial) // Standard glass
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(isTargeted ? Color.blue : .white.opacity(0.15), lineWidth: isTargeted ? 3 : 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isFocused ? Color.accentColor.opacity(0.5) : Color(nsColor: .separatorColor), lineWidth: 1) // Native focus ring feel
         )
-        .scaleEffect(isTargeted ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTargeted)
+        // Removed scale animations for cleaner feel
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             onDrop(providers)
             return true
@@ -620,10 +621,11 @@ struct ModeSelectorPill: View {
                 Text(mode.title).font(.system(size: 12, weight: .medium))
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(isSelected ? mode.color.opacity(0.15) : Color.primary.opacity(0.04)))
-            .overlay(Capsule().stroke(isSelected ? mode.color : Color.primary.opacity(0.1), lineWidth: 1))
-            .foregroundStyle(isSelected ? mode.color : .primary)
+            .padding(.vertical, 6)
+            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.primary.opacity(0.04))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(isSelected ? Color.accentColor.opacity(0.3) : .clear, lineWidth: 1))
+            .foregroundStyle(isSelected ? Color.accentColor : .primary)
         }
         .buttonStyle(.plain)
     }
@@ -638,44 +640,48 @@ struct BentoCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: icon).foregroundStyle(color).font(.title3)
-                Text(title).font(.headline).foregroundStyle(.primary)
+                Label(title, systemImage: icon)
+                    .font(.headline)
+                    .foregroundStyle(color) // Use category color for icon/text
                 Spacer()
             }
             content
         }
         .padding(20)
-        .background(RoundedRectangle(cornerRadius: 24).fill(.ultraThinMaterial).shadow(color: .black.opacity(0.05), radius: 10, y: 5))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+        .background(.regularMaterial) // Standard macOS card material
+        .cornerRadius(16) // Updated radius
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5) // Standard border
+        )
     }
 }
 
 struct RecentFileDetailedRow: View {
-    @EnvironmentObject var appState: AppState
-    let file: ManagedFile
+    typealias File = ManagedFile
+    let file: File
+    @State private var isHovering = false
+    @EnvironmentObject var appState: AppState // Add EnvironmentObject
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack {
+            // Updated Icon size and style
             RichFileIcon(path: file.newPath)
-                .frame(width: 40, height: 40)
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
+                .frame(width: 32, height: 32)
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(file.newName.isEmpty ? file.originalName : file.newName)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.displayName)
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(.primary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading) // Ensure left alignment
                 
                 HStack(spacing: 6) {
                     Label(file.category.displayName, systemImage: file.category.icon)
                         .font(.caption2)
-                        .foregroundStyle(file.category.color)
+                        .foregroundColor(file.category.color)
                     
                     if let sub = file.subcategory {
-                        Text("•")
+                        Image(systemName: "chevron.right")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                         Text(sub)
@@ -684,32 +690,45 @@ struct RecentFileDetailedRow: View {
                     }
                 }
             }
-            .layoutPriority(1) // Prioritize text space
             
-            Spacer(minLength: 10)
+            Spacer()
             
             Text(file.importedAt.timeAgo())
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-                .frame(minWidth: 50, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.clear)
+        .background(isHovering ? Color.primary.opacity(0.04) : Color.clear) // Hover effect
+        .cornerRadius(8)
         .contentShape(Rectangle())
+        .onHover { isHovering = $0 } // Hover trigger
         .onTapGesture(count: 2) {
-            appState.navigationTarget = AppState.NavigationTarget(
-                category: file.category,
-                subcategory: file.subcategory,
-                file: file
-            )
+             NSWorkspace.shared.open(URL(fileURLWithPath: file.newPath))
         }
         .contextMenu {
             Button {
+                NSWorkspace.shared.open(URL(fileURLWithPath: file.newPath))
+            } label: {
+                Label("打开文件", systemImage: "doc.text")
+            }
+            
+            Button {
                 FileFlowManager.shared.revealInFinder(url: URL(fileURLWithPath: file.newPath))
             } label: {
-                Label("打开文件位置", systemImage: "folder")
+                Label("在 Finder 中显示", systemImage: "folder")
+            }
+            
+            Divider()
+            
+            Button {
+                 appState.navigationTarget = AppState.NavigationTarget(
+                    category: file.category,
+                    subcategory: file.subcategory,
+                    file: file
+                )
+            } label: {
+                Label("在分类中查看", systemImage: "sidebar.left")
             }
             
             Button {

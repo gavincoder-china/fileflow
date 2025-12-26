@@ -63,27 +63,32 @@ struct ActivityCalendarView: View {
     // MARK: - Calendar Header
     private var calendarHeader: some View {
         HStack {
-            Button {
-                withAnimation { previousMonth() }
-            } label: {
-                Image(systemName: "chevron.left")
+            HStack(spacing: 4) {
+                Button {
+                    withAnimation { previousMonth() }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.plain)
+                .padding(4)
+                
+                Text(monthYearString)
+                    .font(.headline)
+                    .frame(width: 100, alignment: .center)
+                
+                Button {
+                    withAnimation { nextMonth() }
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.plain)
+                .padding(4)
             }
-            .buttonStyle(.plain)
+            .padding(4)
+            .background(Color.primary.opacity(0.04))
+            .cornerRadius(8)
             
             Spacer()
-            
-            Text(monthYearString)
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Spacer()
-            
-            Button {
-                withAnimation { nextMonth() }
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .buttonStyle(.plain)
             
             Button("今天") {
                 withAnimation {
@@ -95,31 +100,33 @@ struct ActivityCalendarView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-        .padding()
+        .padding(16)
+        .frame(height: 52)
+        .background(.ultraThinMaterial)
     }
     
     // MARK: - Calendar Grid
     private var calendarGrid: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             // Week day headers
             HStack(spacing: 0) {
                 ForEach(daysOfWeek, id: \.self) { day in
                     Text(day)
                         .font(.caption)
-                        .fontWeight(.medium)
+                        .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
             
             // Days grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
                 ForEach(daysInMonth, id: \.self) { date in
                     if let date = date {
                         dayCell(for: date)
                     } else {
                         Color.clear
-                            .frame(height: 40)
+                            .frame(height: 36)
                     }
                 }
             }
@@ -135,21 +142,15 @@ struct ActivityCalendarView: View {
             selectedDate = date
             updateSelectedDayActivities()
         } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 3) {
                 Text("\(calendar.component(.day, from: date))")
-                    .font(.system(size: 14, weight: isToday ? .bold : .regular))
+                    .font(.system(size: 13, weight: isToday ? .bold : .regular))
                     .foregroundStyle(isSelected ? .white : (isToday ? .blue : .primary))
                 
                 // Activity indicator
-                if activityCount > 0 {
-                    Circle()
-                        .fill(activityIntensityColor(count: activityCount))
-                        .frame(width: 6, height: 6)
-                } else {
-                    Circle()
-                        .fill(.clear)
-                        .frame(width: 6, height: 6)
-                }
+                Circle()
+                    .fill(activityCount > 0 ? activityIntensityColor(count: activityCount) : .clear)
+                    .frame(width: 5, height: 5)
             }
             .frame(width: 36, height: 40)
             .background(
@@ -165,8 +166,7 @@ struct ActivityCalendarView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(selectedDateString)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.headline)
                 
                 Text("\(selectedDayActivities.count) 项活动")
                     .font(.caption)
@@ -175,7 +175,9 @@ struct ActivityCalendarView: View {
             
             Spacer()
         }
-        .padding()
+        .padding(16)
+        .frame(height: 52)
+        .background(.regularMaterial)
     }
     
     private var activityList: some View {
@@ -385,7 +387,9 @@ struct FileActivity: Identifiable {
 
 // MARK: - Activity Row
 struct ActivityRow: View {
+    @EnvironmentObject var appState: AppState
     let activity: FileActivity
+    @State private var isHovering = false
     
     var body: some View {
         HStack(spacing: 12) {
@@ -398,6 +402,7 @@ struct ActivityRow: View {
                 Text(activity.fileName)
                     .font(.headline)
                     .lineLimit(1)
+                    .foregroundStyle(.primary)
                 
                 HStack(spacing: 8) {
                     Text(activity.type.description)
@@ -411,12 +416,78 @@ struct ActivityRow: View {
             }
             
             Spacer()
+            
+            if isHovering {
+                Image(systemName: "arrow.up.right.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.title3)
+            }
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.primary.opacity(0.03))
+                .fill(isHovering ? Color.primary.opacity(0.08) : Color.primary.opacity(0.03))
         )
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        .onTapGesture(count: 2) { // Double click to open
+            openFile()
+        }
+        .contextMenu {
+            Button {
+                openFile()
+            } label: {
+                Label("打开文件", systemImage: "doc.text")
+            }
+            
+            Button {
+                revealInFinder()
+            } label: {
+                Label("在 Finder 中显示", systemImage: "folder")
+            }
+            
+            Divider()
+            
+            Button {
+                showInApp()
+            } label: {
+                Label("在分类中查看", systemImage: "sidebar.left")
+            }
+        }
+    }
+    
+    private func openFile() {
+        Task {
+            if let file = await DatabaseManager.shared.getFile(byId: activity.fileId) {
+                await MainActor.run {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: file.newPath))
+                }
+            }
+        }
+    }
+    
+    private func revealInFinder() {
+        Task {
+            if let file = await DatabaseManager.shared.getFile(byId: activity.fileId) {
+                await MainActor.run {
+                    FileFlowManager.shared.revealInFinder(url: URL(fileURLWithPath: file.newPath))
+                }
+            }
+        }
+    }
+    
+    private func showInApp() {
+        Task {
+            if let file = await DatabaseManager.shared.getFile(byId: activity.fileId) {
+                await MainActor.run {
+                    appState.navigationTarget = AppState.NavigationTarget(
+                        category: file.category,
+                        subcategory: file.subcategory,
+                        file: file
+                    )
+                }
+            }
+        }
     }
 }
 

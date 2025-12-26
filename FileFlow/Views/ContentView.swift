@@ -358,19 +358,14 @@ struct SidebarItemRow: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(color.gradient)
-                        .frame(width: 22, height: 22)
-                    
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .bold)) // Finer, smaller icon
-                        .foregroundStyle(.white)
-                }
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isSelected ? .white : color)
+                    .frame(width: 20)
                 
                 Text(title)
-                    .font(.system(size: 13)) // Lighter font
+                    .font(.system(size: 13))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .sidebarSelection(isSelected: isSelected, color: color)
@@ -389,11 +384,11 @@ struct SidebarTagRow: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Circle()
                     .fill(tag.swiftUIColor)
                     .frame(width: 8, height: 8)
-                    .padding(.leading, 8)
+                    .frame(width: 20) // Align with SidebarItemRow icon width
                 
                 Text(tag.name.isEmpty ? "无名称" : tag.name)
                     .font(.system(size: 14))
@@ -411,7 +406,7 @@ struct SidebarTagRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .sidebarSelection(isSelected: isSelected, color: tag.swiftUIColor)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plain) // Intentionally keeping plain button style
         .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)

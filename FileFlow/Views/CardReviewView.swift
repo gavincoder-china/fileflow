@@ -40,15 +40,8 @@ struct CardReviewView: View {
                     minimizedProgressBar
                 }
                 
-                // Header
+                // Header (includes Filters)
                 headerView
-                
-                Divider()
-                
-                // Filter Bar
-                filterBar
-                
-                Divider()
                 
                 // Content
                 contentView
@@ -65,7 +58,8 @@ struct CardReviewView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        // Background removed to allow wallpaper to show through
+        // The parent view (ContentView) or RootView handles the wallpaper
         .task {
             await loadCards()
         }
@@ -75,10 +69,10 @@ struct CardReviewView: View {
     private var minimizedProgressBar: some View {
         HStack(spacing: 12) {
             ProgressView()
-                .scaleEffect(0.7)
+                .controlSize(.small)
             
             Text("生成中: \(generationProgress.current)/\(generationProgress.total)")
-                .font(.caption.bold())
+                .font(.caption.monospacedDigit())
             
             if !currentFileName.isEmpty {
                 Text("• \(currentFileName)")
@@ -113,9 +107,8 @@ struct CardReviewView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(
-            LinearGradient(colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)], startPoint: .leading, endPoint: .trailing)
-        )
+        .background(.regularMaterial)
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(.separator), alignment: .bottom)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
     
@@ -132,7 +125,6 @@ struct CardReviewView: View {
                 HStack {
                     HStack(spacing: 8) {
                         Image(systemName: "sparkles")
-                            .font(.title3)
                         Text("AI 卡片生成")
                             .font(.headline)
                     }
@@ -156,120 +148,68 @@ struct CardReviewView: View {
                 .padding()
                 .background(
                     LinearGradient(
-                        colors: [Color.blue, Color.purple],
+                        colors: [Color.blue, Color.indigo],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
                 )
                 
-                // Content
+                // Content... (rest is same, just layout refactoring if needed, but keeping logic)
                 VStack(spacing: 20) {
-                    if let message = generationMessage {
+                     // ... (Keeping content logic mostly same but cleaning up style)
+                     if let message = generationMessage {
                         // Completion State
                         VStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.green.opacity(0.15))
-                                    .frame(width: 80, height: 80)
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundStyle(Color.green)
-                            }
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(Color.green)
                             
                             Text(message)
                                 .font(.title3.weight(.medium))
                                 .multilineTextAlignment(.center)
-                                .foregroundStyle(.primary)
                         }
                         .padding(.vertical, 20)
                     } else {
                         // Progress State
                         VStack(spacing: 16) {
-                            // Animated icon
-                            ZStack {
-                                Circle()
-                                    .stroke(Color.blue.opacity(0.2), lineWidth: 4)
-                                    .frame(width: 70, height: 70)
-                                
-                                Circle()
-                                    .trim(from: 0, to: generationProgress.total > 0 ? CGFloat(generationProgress.current) / CGFloat(generationProgress.total) : 0.1)
-                                    .stroke(Color.blue, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                    .frame(width: 70, height: 70)
-                                    .rotationEffect(.degrees(-90))
-                                    .animation(.linear(duration: 0.3), value: generationProgress.current)
-                                
-                                if generationProgress.total > 0 {
-                                    Text("\(Int(Double(generationProgress.current) / Double(generationProgress.total) * 100))%")
-                                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundStyle(Color.blue)
-                                } else {
-                                    ProgressView()
-                                }
-                            }
+                            ProgressView(value: Double(generationProgress.current), total: Double(generationProgress.total))
+                                .progressViewStyle(.linear)
+                                .frame(width: 200)
                             
-                            Text("正在分析文件并生成知识卡片")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            
-                            if generationProgress.total > 0 {
-                                HStack(spacing: 4) {
-                                    Text("\(generationProgress.current)")
-                                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                                        .foregroundStyle(Color.blue)
-                                    Text("/")
-                                        .font(.title2)
-                                        .foregroundStyle(.secondary)
-                                    Text("\(generationProgress.total)")
-                                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            Text("正在生成: \(generationProgress.current) / \(generationProgress.total)")
+                                .font(.headline.monospacedDigit())
                             
                             if !currentFileName.isEmpty {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "doc.text")
-                                        .font(.caption)
-                                    Text(currentFileName)
-                                        .font(.caption)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 6)
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(20)
+                                Text(currentFileName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
                         }
                         .padding(.vertical, 20)
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(24)
                 
                 Divider()
                 
                 // Footer
-                Button {
-                    cancelGeneration()
-                } label: {
-                    Text(generationMessage != nil ? "完成" : "取消生成")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                HStack {
+                    Spacer()
+                    Button(generationMessage != nil ? "完成" : "取消") {
+                        cancelGeneration()
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(generationMessage != nil ? Color.blue : Color.red)
+                .padding()
             }
-            .frame(width: 340)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(nsColor: .windowBackgroundColor))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.25), radius: 30, y: 15)
+            .frame(width: 320)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(radius: 20)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isGenerating)
     }
     
     private func cancelGeneration() {
@@ -282,171 +222,113 @@ struct CardReviewView: View {
         generationMessage = nil
     }
     
-    // MARK: - Header
+    // MARK: - Toolbar & Filters
+    
     private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("📖 知识卡片")
-                    .font(.title2.bold())
-                Text("浏览和复习您的知识卡片")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            // Stats
-            HStack(spacing: 12) {
-                Text("\(allCards.count) 张卡片")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.blue.opacity(0.1)))
+        VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                // Leading: Title
+                Label("知识卡片", systemImage: "rectangle.stack")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
                 
-                let needReviewCount = allCards.filter { $0.needsReview }.count
-                if needReviewCount > 0 {
-                    Text("\(needReviewCount) 待复习")
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.orange))
-                }
-            }
-            
-            // Progress indicator
-            if !displayedCards.isEmpty {
-                Text("\(currentIndex + 1) / \(displayedCards.count)")
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(Color.blue)
-            }
-            
-            // Generate button with options
-            Menu {
-                Button {
-                    generationTask = Task { await generateCards(category: nil, tag: nil) }
-                } label: {
-                    Label("生成最近文件 (50个)", systemImage: "clock")
-                }
+                Spacer()
                 
-                Divider()
-                
-                Menu("按分类生成") {
-                    ForEach(PARACategory.allCases) { cat in
-                        Button {
-                            generationTask = Task { await generateCards(category: cat, tag: nil) }
-                        } label: {
-                            Label(cat.displayName, systemImage: cat.icon)
-                        }
+                // Center: Mode Switcher (Style like macOS Tabs)
+                Picker("模式", selection: $viewMode) {
+                    ForEach(ViewMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
                     }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+                .onChange(of: viewMode) { _, _ in applyFilters() }
                 
-                Menu("按标签生成") {
-                    ForEach(appState.sidebarTags.prefix(15)) { tag in
-                        Button {
-                            generationTask = Task { await generateCards(category: nil, tag: tag) }
-                        } label: {
-                            HStack {
-                                Circle().fill(tag.swiftUIColor).frame(width: 8, height: 8)
-                                Text(tag.name)
+                Spacer()
+                
+                // Trailing: Filters & Actions
+                HStack(spacing: 12) {
+                    // Category Filter
+                    Menu {
+                        Button("全部分类") {
+                            selectedCategory = nil
+                            applyFilters()
+                        }
+                        Divider()
+                        ForEach(PARACategory.allCases) { cat in
+                            Button {
+                                selectedCategory = cat
+                                applyFilters()
+                            } label: {
+                                Label(cat.displayName, systemImage: cat.icon)
                             }
                         }
-                    }
-                }
-                
-                Divider()
-                
-                // Regenerate section
-                Menu("🔄 重新生成") {
-                    Button {
-                        generationTask = Task { await generateCards(category: nil, tag: nil, forceRegenerate: true) }
                     } label: {
-                        Label("重新生成最近文件", systemImage: "arrow.triangle.2.circlepath")
+                        Label(selectedCategory?.displayName ?? "全部分类", systemImage: selectedCategory?.icon ?? "folder")
+                            .fixedSize()
                     }
+                    .menuStyle(.borderedButton) // Standard macOS style
                     
-                    Divider()
-                    
-                    ForEach(PARACategory.allCases) { cat in
-                        Button {
-                            generationTask = Task { await generateCards(category: cat, tag: nil, forceRegenerate: true) }
-                        } label: {
-                            Label("重新生成: \(cat.displayName)", systemImage: cat.icon)
+                    // Tag Filter
+                    Menu {
+                        Button("全部标签") {
+                            selectedTag = nil
+                            applyFilters()
                         }
+                        Divider()
+                        ForEach(appState.sidebarTags.prefix(20)) { tag in
+                            Button {
+                                selectedTag = tag
+                                applyFilters()
+                            } label: {
+                                HStack {
+                                    Circle().fill(tag.swiftUIColor).frame(width: 8, height: 8)
+                                    Text(tag.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(selectedTag?.name ?? "全部标签", systemImage: "tag")
+                            .fixedSize()
                     }
+                    .menuStyle(.borderedButton)
+                    
+                    // Generate Action
+                    generateMenuButton
                 }
-            } label: {
-                Label("生成卡片", systemImage: "sparkles")
             }
-            .menuStyle(.borderlessButton)
-            .disabled(isGenerating)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
             
-            Button {
-                Task { await loadCards() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
+            Divider()
         }
-        .padding(20)
+        .background(.regularMaterial) // Standard styling
     }
     
-    // MARK: - Filter Bar
-    private var filterBar: some View {
-        HStack(spacing: 16) {
-            // Mode Picker
-            Picker("模式", selection: $viewMode) {
-                ForEach(ViewMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 200)
-            .onChange(of: viewMode) { _, _ in
-                applyFilters()
+    private var generateMenuButton: some View {
+        Menu {
+            Button {
+                generationTask = Task { await generateCards(category: nil, tag: nil) }
+            } label: {
+                Label("生成最近文件 (50个)", systemImage: "clock")
             }
             
-            Divider().frame(height: 20)
+            Divider()
             
-            // Category Filter
-            Menu {
-                Button("全部分类") {
-                    selectedCategory = nil
-                    applyFilters()
-                }
-                Divider()
+            Menu("按分类生成") {
                 ForEach(PARACategory.allCases) { cat in
                     Button {
-                        selectedCategory = cat
-                        applyFilters()
+                        generationTask = Task { await generateCards(category: cat, tag: nil) }
                     } label: {
                         Label(cat.displayName, systemImage: cat.icon)
                     }
                 }
-            } label: {
-                HStack {
-                    Image(systemName: selectedCategory?.icon ?? "folder")
-                    Text(selectedCategory?.displayName ?? "分类筛选")
-                    Image(systemName: "chevron.down")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8).fill(selectedCategory != nil ? Color.blue.opacity(0.1) : Color.primary.opacity(0.05)))
             }
-            .buttonStyle(.plain)
             
-            // Tag Filter
-            Menu {
-                Button("全部标签") {
-                    selectedTag = nil
-                    applyFilters()
-                }
-                Divider()
-                ForEach(appState.sidebarTags.prefix(20)) { tag in
+            Menu("按标签生成") {
+                ForEach(appState.sidebarTags.prefix(15)) { tag in
                     Button {
-                        selectedTag = tag
-                        applyFilters()
+                        generationTask = Task { await generateCards(category: nil, tag: tag) }
                     } label: {
                         HStack {
                             Circle().fill(tag.swiftUIColor).frame(width: 8, height: 8)
@@ -454,37 +336,27 @@ struct CardReviewView: View {
                         }
                     }
                 }
-            } label: {
-                HStack {
-                    Image(systemName: "tag")
-                    Text(selectedTag?.name ?? "标签筛选")
-                    Image(systemName: "chevron.down")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8).fill(selectedTag != nil ? Color.green.opacity(0.1) : Color.primary.opacity(0.05)))
             }
-            .buttonStyle(.plain)
             
-            // Clear filters
-            if selectedCategory != nil || selectedTag != nil {
+            Divider()
+            
+            Menu("🔄 重新生成") {
                 Button {
-                    selectedCategory = nil
-                    selectedTag = nil
-                    applyFilters()
+                    generationTask = Task { await generateCards(category: nil, tag: nil, forceRegenerate: true) }
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                    Label("重新生成最近文件", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .buttonStyle(.plain)
             }
-            
-            Spacer()
+        } label: {
+            Label("生成", systemImage: "sparkles")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(Color.primary.opacity(0.02))
+        .menuStyle(.borderedButton) // Standard valid style
+        .disabled(isGenerating)
+    }
+    
+    // Legacy support for binding variable that was removed from layout
+    private var filterBar: some View {
+        EmptyView() // Integrated into header
     }
     
     // MARK: - Content
@@ -858,6 +730,14 @@ struct CardReviewView: View {
         case again, hard, good, easy
     }
 }
+
+// Helper modifier for active filters
+fileprivate extension View {
+    func vocabFilterStyle(isActive: Bool) -> some View {
+        self.tint(isActive ? .blue : .primary)
+    }
+}
+
 
 #Preview {
     CardReviewView()
