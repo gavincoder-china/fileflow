@@ -21,7 +21,9 @@ struct TagMergeSuggestionView: View {
             Divider()
             
             // Content
-            if viewModel.isLoading {
+            if !viewModel.hasStarted {
+                startView
+            } else if viewModel.isLoading {
                 loadingView
             } else if viewModel.suggestions.isEmpty {
                 emptyView
@@ -36,9 +38,8 @@ struct TagMergeSuggestionView: View {
         }
         .frame(width: 650, height: 500)
         .background(.ultraThinMaterial)
-        .task {
-            await viewModel.loadSuggestions()
-        }
+        .frame(width: 650, height: 500)
+        .background(.ultraThinMaterial)
     }
     
     // MARK: - Header
@@ -106,6 +107,40 @@ struct TagMergeSuggestionView: View {
             Text("正在分析标签...")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Start View
+    private var startView: some View {
+        VStack(spacing: 24) {
+             Image(systemName: "tag.square.stack")
+                 .font(.system(size: 64))
+                 .foregroundStyle(.blue.gradient)
+             
+             VStack(spacing: 8) {
+                 Text("智能标签优化")
+                     .font(.title2.bold())
+                 Text("分析相似标签、同义词及命名不规范，保持标签系统整洁")
+                     .font(.body)
+                     .foregroundStyle(.secondary)
+                     .multilineTextAlignment(.center)
+                     .frame(maxWidth: 400)
+             }
+             
+             Button {
+                 Task { await viewModel.loadSuggestions() }
+             } label: {
+                 HStack {
+                     Image(systemName: "sparkles")
+                     Text("开始分析")
+                 }
+                 .font(.headline)
+                 .padding(.horizontal, 24)
+                 .padding(.vertical, 12)
+             }
+             .buttonStyle(.borderedProminent)
+             .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -259,12 +294,14 @@ class TagMergeSuggestionViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isMerging = false
     @Published var minSimilarity: Double = 0.7
+    @Published var hasStarted = false
     
     var allSelected: Bool {
         !suggestions.isEmpty && selectedPairs.count == suggestions.count
     }
     
     func loadSuggestions() async {
+        hasStarted = true
         isLoading = true
         suggestions = await TagMergeService.shared.findSimilarTags(minSimilarity: minSimilarity)
         selectedPairs.removeAll()

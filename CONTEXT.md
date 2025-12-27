@@ -65,6 +65,10 @@ FileFlow/
 | `IncrementalIndexService` | 增量索引服务，仅处理变更文件以提升性能 |
 | `SpotlightIndexService` | CoreSpotlight 集成，支持系统级搜索 |
 | `TimeCapsuleService` | 时间胶囊服务，管理未来触发的文件解锁 |
+| `SmartMergeService` | **智能合并服务**，AI 驱动的标签/文件夹合并建议 |
+| `TagMergeService` | 标签合并服务，Levenshtein 距离检测相似标签 |
+| `CloudSyncService` | iCloud 同步服务，数据库和配置跨设备同步 |
+| `NaturalLanguageQueryService` | 自然语言查询解析，支持"找上周的PDF"等语义搜索 |
 
 ### ViewModels
 
@@ -81,6 +85,8 @@ FileFlow/
 | `ActivityCalendarView` | 类似 GitHub 的文件活动热力图 |
 | `FileStackOrganizerView` | **多文件拖入后的卡片堆叠整理界面**，支持并行 AI 分析 |
 | `TagGraphView` | 基于 Canvas 的标签-文件关系力导向图 |
+| `SmartOrganizeView` | **智能整理助手**，AI 分析标签/文件夹合并建议 |
+| `CardReviewView` | 知识卡片复习页面，间隔重复学习系统 |
 
 ---
 
@@ -170,4 +176,4 @@ xcodebuild clean -scheme FileFlow
 
 ---
 
-*最后更新: 2024-12-26*
+*最后更新: 2025-12-27*

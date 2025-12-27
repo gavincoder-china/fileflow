@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var selectedFileURL: URL?  // 用于驱动 sheet
     @State private var pendingFileURLs: [URL] = []  // 待处理的文件队列
     @State private var selectedUploadMode: UploadMode = .smart  // Current upload mode
+
     
     enum SidebarItem: Hashable {
         case dropZone
@@ -25,6 +26,8 @@ struct ContentView: View {
         case cardReview // 知识卡片复习
         case calendar   // 活动日历
         case timeCapsule // 时间胶囊
+
+        case smartOrganize // 智能整理助手
         case settings   // 设置
     }
     
@@ -74,6 +77,10 @@ struct ContentView: View {
                 case .timeCapsule:
                     TimeCapsuleView()
                         .id("timeCapsule")
+
+                case .smartOrganize:
+                    SmartOrganizeView()
+                        .id("smartOrganize")
                 case .settings:
                     SettingsView()
                         .id("settings")
@@ -168,6 +175,7 @@ struct ContentView: View {
             BatchOrganizeView()
                 .environmentObject(appState)
         }
+
         .scrollContentBackground(.hidden) // Ensure all detail views are transparent
         .onChange(of: appState.navigationTarget) { _, target in
             if let target = target {
@@ -265,7 +273,16 @@ struct SidebarView: View {
                     icon: "hourglass",
                     isSelected: selectedItem == .timeCapsule,
                     color: .purple
+
                 ) { selectedItem = .timeCapsule }
+                
+                // 智能整理助手
+                SidebarItemRow(
+                    title: "智能整理助手",
+                    icon: "sparkles",
+                    isSelected: selectedItem == .smartOrganize,
+                    color: .pink
+                ) { selectedItem = .smartOrganize }
             }
             .designRounded()
             

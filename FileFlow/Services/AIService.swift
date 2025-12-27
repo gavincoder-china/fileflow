@@ -11,6 +11,29 @@ import Foundation
 protocol AIServiceProtocol {
     func analyzeFile(content: String, fileName: String) async throws -> AIAnalysisResult
     func testConnection() async throws -> Bool
+    func analyzeMergeCandidates(items: [String], itemType: String, context: String?) async throws -> [AIMergeSuggestion]
+}
+
+// MARK: - AI Merge Suggestion Result
+struct AIMergeSuggestion: Codable {
+    let source: String
+    let target: String
+    let similarity: Double
+    let reason: String
+    let suggestedName: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case source, target, similarity, reason
+        case suggestedName = "suggested_name"
+    }
+}
+
+// MARK: - Default Implementation for Merge Analysis
+extension AIServiceProtocol {
+    func analyzeMergeCandidates(items: [String], itemType: String, context: String?) async throws -> [AIMergeSuggestion] {
+        // 默认实现：返回空数组，子类可覆盖
+        return []
+    }
 }
 
 // MARK: - AI Service Factory
@@ -64,6 +87,11 @@ class RetryableAIService: AIServiceProtocol {
     
     func testConnection() async throws -> Bool {
         try await wrapped.testConnection()
+    }
+    
+    func analyzeMergeCandidates(items: [String], itemType: String, context: String?) async throws -> [AIMergeSuggestion] {
+        // Delegate to wrapped service (no retry for this method currently)
+        try await wrapped.analyzeMergeCandidates(items: items, itemType: itemType, context: context)
     }
     
     func analyzeFile(content: String, fileName: String) async throws -> AIAnalysisResult {
@@ -258,6 +286,124 @@ class OpenAIService: AIServiceProtocol {
             confidence: 0.85
         )
     }
+    
+    // MARK: - Merge Analysis
+    
+    func analyzeMergeCandidates(items: [String], itemType: String, context: String?) async throws -> [AIMergeSuggestion] {
+        guard !apiKey.isEmpty else {
+            throw AIError.missingApiKey
+        }
+        
+        guard items.count >= 2 else { return [] }
+        
+        var prompt = """
+        你是一个基于 PARA 方法论的知识管理专家。请分析以下\(itemType)列表，识别语义相似或功能重叠的项目对，并给出合并建议。
+
+        PARA 方法论简介：
+        - Projects (项目): 有明确目标和截止日期的工作
+        - Areas (领域): 需要持续关注的责任范围
+        - Resources (资源): 可能有用的参考资料
+        - Archives (归档): 已完成或不再活跃的内容
+
+        """
+        
+        if let ctx = context {
+            prompt += "上下文信息: \(ctx)\n\n"
+        }
+        
+        prompt += "待分析的\(itemType)列表：\n"
+        for (index, item) in items.enumerated() {
+            prompt += "\(index + 1). \(item)\n"
+        }
+        
+        prompt += """
+
+        请识别所有语义相似的\(itemType)对。只返回相似度 >= 0.7 的配对。
+        
+        以 JSON 格式返回合并建议（如果没有相似项，返回空数组）：
+        {
+          "suggestions": [
+            {
+              "source": "被合并项名称",
+              "target": "保留项名称",
+              "similarity": 0.92,
+              "reason": "合并理由（简短说明为什么这两个项目应该合并）",
+              "suggested_name": "合并后建议使用的名称"
+            }
+          ]
+        }
+        """
+        
+        let requestBody: [String: Any] = [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": "你是一个知识管理专家，擅长识别语义相似的概念和分类。"],
+                ["role": "user", "content": prompt]
+            ],
+            "temperature": 0.2,
+            "max_tokens": 1000
+        ]
+        
+        var request = URLRequest(url: URL(string: baseURL)!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = errorJson["error"] as? [String: Any],
+               let message = error["message"] as? String {
+                throw AIError.apiError(message)
+            }
+            throw AIError.apiError("API 请求失败")
+        }
+        
+        return try parseMergeSuggestions(data)
+    }
+    
+    private func parseMergeSuggestions(_ data: Data) throws -> [AIMergeSuggestion] {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let firstChoice = choices.first,
+              let message = firstChoice["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            throw AIError.parseError
+        }
+        
+        // Clean up markdown code blocks
+        var cleanContent = content
+        if cleanContent.hasPrefix("```json") {
+            cleanContent = cleanContent.replacingOccurrences(of: "```json", with: "").replacingOccurrences(of: "```", with: "")
+        }
+        cleanContent = cleanContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let contentData = cleanContent.data(using: .utf8),
+              let result = try JSONSerialization.jsonObject(with: contentData) as? [String: Any],
+              let suggestionsArray = result["suggestions"] as? [[String: Any]] else {
+            // 如果解析失败，返回空数组而不是抛出错误
+            return []
+        }
+        
+        return suggestionsArray.compactMap { dict -> AIMergeSuggestion? in
+            guard let source = dict["source"] as? String,
+                  let target = dict["target"] as? String,
+                  let similarity = dict["similarity"] as? Double,
+                  let reason = dict["reason"] as? String else {
+                return nil
+            }
+            
+            return AIMergeSuggestion(
+                source: source,
+                target: target,
+                similarity: similarity,
+                reason: reason,
+                suggestedName: dict["suggested_name"] as? String
+            )
+        }
+    }
 }
 
 // MARK: - Ollama Service
@@ -411,6 +557,111 @@ class MockAIService: AIServiceProtocol {
             suggestedSubcategory: nil,
             confidence: 0.5
         )
+    }
+    
+    func analyzeMergeCandidates(items: [String], itemType: String, context: String?) async throws -> [AIMergeSuggestion] {
+        try await Task.sleep(nanoseconds: 800_000_000) // Simulate network delay
+        
+        var suggestions: [AIMergeSuggestion] = []
+        
+        guard items.count >= 2 else { return [] }
+        
+        // Dynamic analysis based on actual items using Levenshtein distance
+        for i in 0..<items.count {
+            for j in (i+1)..<items.count {
+                let item1 = items[i]
+                let item2 = items[j]
+                
+                let name1 = item1.lowercased()
+                let name2 = item2.lowercased()
+                
+                // Check similarity
+                var similarity: Double = 0
+                var reason: String = ""
+                
+                // 1. Exact match (different case)
+                if name1 == name2 && item1 != item2 {
+                    similarity = 1.0
+                    reason = "大小写不同，建议统一。"
+                }
+                // 2. Contains relationship
+                else if name1.contains(name2) || name2.contains(name1) {
+                    let longer = max(name1.count, name2.count)
+                    let shorter = min(name1.count, name2.count)
+                    let ratio = Double(shorter) / Double(longer)
+                    if ratio >= 0.5 {
+                        similarity = 0.85
+                        reason = "存在包含关系，可以考虑合并。"
+                    }
+                }
+                // 3. Common prefix
+                else {
+                    let commonPrefix = name1.commonPrefix(with: name2)
+                    if commonPrefix.count >= 3 {
+                        let prefixSimilarity = Double(commonPrefix.count) / Double(max(name1.count, name2.count))
+                        if prefixSimilarity >= 0.5 {
+                            similarity = prefixSimilarity * 0.9
+                            reason = "前缀相同，可能属于同一类别。"
+                        }
+                    }
+                }
+                // 4. Levenshtein distance
+                if similarity == 0 {
+                    let distance = levenshteinDistance(name1, name2)
+                    let maxLen = max(name1.count, name2.count)
+                    if maxLen > 0 {
+                        let stringSimilarity = 1.0 - Double(distance) / Double(maxLen)
+                        if stringSimilarity >= 0.6 {
+                            similarity = stringSimilarity
+                            reason = "命名相似，建议统一。"
+                        }
+                    }
+                }
+                
+                if similarity >= 0.6 {
+                    // Suggest keeping the shorter or more-used name
+                    let (source, target) = item1.count > item2.count ? (item1, item2) : (item2, item1)
+                    suggestions.append(AIMergeSuggestion(
+                        source: source,
+                        target: target,
+                        similarity: similarity,
+                        reason: reason,
+                        suggestedName: target
+                    ))
+                }
+            }
+        }
+        
+        // Sort by similarity descending
+        return suggestions.sorted { $0.similarity > $1.similarity }
+    }
+    
+    private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
+        let a = Array(s1)
+        let b = Array(s2)
+        let m = a.count
+        let n = b.count
+        
+        if m == 0 { return n }
+        if n == 0 { return m }
+        
+        var dp = [[Int]](repeating: [Int](repeating: 0, count: n + 1), count: m + 1)
+        
+        for i in 0...m { dp[i][0] = i }
+        for j in 0...n { dp[0][j] = j }
+        
+        for i in 1...m {
+            for j in 1...n {
+                let cost = a[i-1] == b[j-1] ? 0 : 1
+                dp[i][j] = min(
+                    dp[i-1][j] + 1,
+                    dp[i][j-1] + 1,
+                    dp[i-1][j-1] + cost
+                )
+            }
+        }
+        
+        return dp[m][n]
     }
 }
 

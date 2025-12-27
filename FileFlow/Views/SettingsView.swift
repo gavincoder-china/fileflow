@@ -611,13 +611,13 @@ struct AboutSettingsView: View {
                 .frame(height: 60)
             
             // App Icon
-            Image(systemName: "doc.text.magnifyingglass")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 100, height: 100)
-                .foregroundStyle(.blue.gradient)
-                .shadow(color: .blue.opacity(0.3), radius: 20, y: 10)
-                .padding(.bottom, 24)
+             Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
+                 .resizable()
+                 .aspectRatio(contentMode: .fit)
+                 .frame(width: 128, height: 128)
+                 .cornerRadius(28)
+                 .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+                 .padding(.bottom, 24)
             
             // App Name & Version
             Text("FileFlow")

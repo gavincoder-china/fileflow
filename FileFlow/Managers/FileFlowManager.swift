@@ -128,9 +128,20 @@ class FileFlowManager {
     
     func getSubcategories(for category: PARACategory) -> [String] {
         let categoryURL = getCategoryURL(for: category)
-        
+        return listDirectories(at: categoryURL)
+    }
+    
+    /// 获取根目录下非 PARA 分类的文件夹
+    func getRootSubdirectories() -> [String] {
+        guard let root = rootURL else { return [] }
+        let allDirs = listDirectories(at: root)
+        let paraNames = PARACategory.allCases.map { $0.folderName } + [".fileflow", ".git", ".trash"]
+        return allDirs.filter { !paraNames.contains($0) }
+    }
+    
+    private func listDirectories(at url: URL) -> [String] {
         do {
-            let contents = try fileManager.contentsOfDirectory(at: categoryURL, includingPropertiesForKeys: [.isDirectoryKey])
+            let contents = try fileManager.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey])
             return contents.compactMap { url -> String? in
                 var isDirectory: ObjCBool = false
                 if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
@@ -142,7 +153,6 @@ class FileFlowManager {
                 return nil
             }.sorted()
         } catch {
-            Logger.error("Failed to list subcategories: \(error)")
             return []
         }
     }
@@ -434,6 +444,30 @@ class FileFlowManager {
         
         // 4. Delete old subcategory from DB
         await DatabaseManager.shared.deleteSubcategory(name: source, category: category)
+    }
+    
+    /// 合并根目录下的文件夹（非 PARA 分类文件夹）
+    func mergeRootFolders(from source: String, to target: String) throws {
+        guard let root = rootURL else { return }
+        let sourceURL = root.appendingPathComponent(source)
+        let targetURL = root.appendingPathComponent(target)
+        
+        // Ensure target exists
+        createDirectoryIfNeeded(at: targetURL)
+        
+        // 1. Move physical files
+        let fileManagerFiles = try fileManager.contentsOfDirectory(at: sourceURL, includingPropertiesForKeys: nil)
+        for fileURL in fileManagerFiles {
+            let destination = targetURL.appendingPathComponent(fileURL.lastPathComponent)
+            let safeDestination = resolveNameConflict(for: destination)
+            try fileManager.moveItem(at: fileURL, to: safeDestination)
+        }
+        
+        // 2. Remove source folder
+        try fileManager.removeItem(at: sourceURL)
+        
+        // Note: We don't update DB here because files in root folders are likely uncategorized or tracked loosely.
+        // A full re-scan/re-index might be needed later.
     }
     
     func deleteSubcategoryFolder(category: PARACategory, subcategory: String) throws {

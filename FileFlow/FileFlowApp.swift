@@ -14,6 +14,7 @@ import SwiftUI
 import Combine
 
 @main
+@MainActor
 struct FileFlowApp: App {
     @StateObject private var appState = AppState()
     @ObservedObject private var themeManager = ThemeManager.shared
@@ -227,6 +228,7 @@ struct RootSelectorSheet: View {
 }
 
 // MARK: - App State
+@MainActor
 class AppState: ObservableObject {
     @Published var showFileImporter = false
     @Published var showBatchMode = false
@@ -301,6 +303,9 @@ class AppState: ObservableObject {
     
     // 新文件通知
     @Published var pendingNewFiles: [URL] = []
+    
+    // Persistent Smart Organize ViewModel
+    @Published var smartOrganizeViewModel = SmartOrganizeViewModel()
     
     @Published var lastUpdateID = UUID()
     

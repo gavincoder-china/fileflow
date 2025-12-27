@@ -77,12 +77,19 @@
 		B9D919CA2EFD8BD20055B40E /* NaturalLanguageQueryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919C52EFD8BD20055B40E /* NaturalLanguageQueryService.swift */; };
 		B9D919CB2EFD8BD20055B40E /* SpotlightIndexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919C62EFD8BD20055B40E /* SpotlightIndexService.swift */; };
 		B9D919CD2EFD8BE30055B40E /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919CC2EFD8BE30055B40E /* ThemeManager.swift */; };
+		B9D919D12EFE54180055B40E /* FileOperationSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919CF2EFE54170055B40E /* FileOperationSection.swift */; };
+		B9D919D22EFE54180055B40E /* DeleteConfirmationDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919CE2EFE54170055B40E /* DeleteConfirmationDialog.swift */; };
+		B9D919D32EFE54180055B40E /* TagEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919D02EFE54170055B40E /* TagEditorSheet.swift */; };
+		B9D919D52EFE69650055B40E /* SmartMergeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919D42EFE69650055B40E /* SmartMergeService.swift */; };
+		B9D919D82EFE69830055B40E /* FolderMergeSuggestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919D62EFE69830055B40E /* FolderMergeSuggestionView.swift */; };
+		B9D919D92EFE69830055B40E /* SmartOrganizeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D919D72EFE69830055B40E /* SmartOrganizeView.swift */; };
 		C04E5788F93A16F207FBDD58 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABDA1B8A41A8255007E95AF /* ContentView.swift */; };
 		CE0A991E2BA6AB5135E78BBC /* TagManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705945C380FD476AC8D5394D /* TagManagerView.swift */; };
 		D71D6FEE1626C0A111D28E05 /* CategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366606188FE4E5FDC9A345C8 /* CategoryView.swift */; };
 		E4CA53EDAE7477443DA73E28 /* RichFileIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F23C247372AA4EE359D8414 /* RichFileIcon.swift */; };
 		ED1200AA25DC460C0973E8C6 /* FileOrganizeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F03D9F7633BB67B6330039 /* FileOrganizeSheet.swift */; };
 		ED7148EDF8AEAB13BF67F9A7 /* FileFlowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4742F966E3AE6B7B2A8B89B1 /* FileFlowApp.swift */; };
+		B9D919DB2EFE7D3C0055B40F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B9D919DA2EFE7D3C0055B40E /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -160,6 +167,13 @@
 		B9D919C62EFD8BD20055B40E /* SpotlightIndexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexService.swift; sourceTree = "<group>"; };
 		B9D919C72EFD8BD20055B40E /* TimeCapsuleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeCapsuleService.swift; sourceTree = "<group>"; };
 		B9D919CC2EFD8BE30055B40E /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
+		B9D919CE2EFE54170055B40E /* DeleteConfirmationDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmationDialog.swift; sourceTree = "<group>"; };
+		B9D919CF2EFE54170055B40E /* FileOperationSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperationSection.swift; sourceTree = "<group>"; };
+		B9D919D02EFE54170055B40E /* TagEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagEditorSheet.swift; sourceTree = "<group>"; };
+		B9D919D42EFE69650055B40E /* SmartMergeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartMergeService.swift; sourceTree = "<group>"; };
+		B9D919D62EFE69830055B40E /* FolderMergeSuggestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderMergeSuggestionView.swift; sourceTree = "<group>"; };
+		B9D919D72EFE69830055B40E /* SmartOrganizeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartOrganizeView.swift; sourceTree = "<group>"; };
+		B9D919DA2EFE7D3C0055B40E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CA385A05F90723E3A7CD23D9 /* FileOrganizeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOrganizeViewModel.swift; sourceTree = "<group>"; };
 		D6F03D9F7633BB67B6330039 /* FileOrganizeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOrganizeSheet.swift; sourceTree = "<group>"; };
 		D849114610439B7358B6DF02 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
@@ -170,6 +184,7 @@
 		149EFBD21B3680816B7B91EB /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B9D919D42EFE69650055B40E /* SmartMergeService.swift */,
 				B9D919C42EFD8BD20055B40E /* CloudSyncService.swift */,
 				B9D919C52EFD8BD20055B40E /* NaturalLanguageQueryService.swift */,
 				B9D919C62EFD8BD20055B40E /* SpotlightIndexService.swift */,
@@ -198,6 +213,7 @@
 		15F133712A6575DB84EB5C1B /* FileFlow */ = {
 			isa = PBXGroup;
 			children = (
+				B9D919DA2EFE7D3C0055B40E /* Assets.xcassets */,
 				4742F966E3AE6B7B2A8B89B1 /* FileFlowApp.swift */,
 				59E5DA3322A81C0B92DB46AE /* Info.plist */,
 				62AE3E37594B625596088A0B /* Managers */,
@@ -242,6 +258,11 @@
 		B9D919662EFA94B20055B40E /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				B9D919D62EFE69830055B40E /* FolderMergeSuggestionView.swift */,
+				B9D919D72EFE69830055B40E /* SmartOrganizeView.swift */,
+				B9D919CE2EFE54170055B40E /* DeleteConfirmationDialog.swift */,
+				B9D919CF2EFE54170055B40E /* FileOperationSection.swift */,
+				B9D919D02EFE54170055B40E /* TagEditorSheet.swift */,
 				B9D919C22EFD8BBB0055B40E /* Charts */,
 				B9D919AD2EFD0A930055B40E /* Reader */,
 				B9D919AE2EFD0A930055B40E /* UniversalReaderView.swift */,
@@ -339,6 +360,7 @@
 			buildConfigurationList = 840FCE93596A6D553132CEA1 /* Build configuration list for PBXNativeTarget "FileFlow" */;
 			buildPhases = (
 				37A52230862C707D6CD8FF86 /* Sources */,
+				B9D919DC2EFE7D3C0055B410 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -401,6 +423,8 @@
 				B9D919A12EFD015A0055B40E /* SemanticSearchService.swift in Sources */,
 				B9D919A22EFD015A0055B40E /* MultimodalAnalysisService.swift in Sources */,
 				B9D919A32EFD015A0055B40E /* UserFeedbackService.swift in Sources */,
+				B9D919D82EFE69830055B40E /* FolderMergeSuggestionView.swift in Sources */,
+				B9D919D92EFE69830055B40E /* SmartOrganizeView.swift in Sources */,
 				B9D9195A2EFA51750055B40E /* RuleConfigurationView.swift in Sources */,
 				B9D919572EFA515E0055B40E /* TagPropagationService.swift in Sources */,
 				B9D919832EFB95A40055B40E /* LifecycleModels.swift in Sources */,
@@ -463,12 +487,27 @@
 				B9D919BC2EFD79850055B40E /* ReviewSessionView.swift in Sources */,
 				5E33951FA13EF9B5E8BDB035 /* TagGraphView.swift in Sources */,
 				CE0A991E2BA6AB5135E78BBC /* TagManagerView.swift in Sources */,
+				B9D919D52EFE69650055B40E /* SmartMergeService.swift in Sources */,
 				B9D919602EFA63230055B40E /* Constants.swift in Sources */,
+				B9D919D12EFE54180055B40E /* FileOperationSection.swift in Sources */,
+				B9D919D22EFE54180055B40E /* DeleteConfirmationDialog.swift in Sources */,
+				B9D919D32EFE54180055B40E /* TagEditorSheet.swift in Sources */,
 				B9D919A92EFD07F30055B40E /* KnowledgeHubView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B9D919DC2EFE7D3C0055B410 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B9D919DB2EFE7D3C0055B40F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		5A0BD6A0421112E5952F2979 /* Release */ = {
